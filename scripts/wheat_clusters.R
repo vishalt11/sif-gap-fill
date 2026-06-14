@@ -7,7 +7,7 @@ library(sf)
 # Find high density wheat farm clusters and focus on these regions
 #-------------------------------------------------------------------------------
 
-ctr <- rast('../data/crop_type_tif/croptypes_2024.tif')
+ctr <- rast('data/crop_type_tif/croptypes_2024.tif')
 
 crop_classes <- readr::read_delim("../data/crop_type_tif/LEGEND_CropTypes.txt", delim = "\t")
 colnames(crop_classes) <- c("code", "label")

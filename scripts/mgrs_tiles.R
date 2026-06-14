@@ -4,7 +4,7 @@ library(purrr)
 library(ggplot2)
 library(giscoR)
 library(geographiclib)
-library(mgrs)
+#library(mgrs)
 
 # German federal states from GISCO
 germany_states <- gisco_get_nuts(
@@ -76,6 +76,8 @@ mgrs_tiles_germany <- mgrs_tiles_all %>%
 #only 32U tiles
 mgrs_tiles_germany <- mgrs_tiles_germany %>% filter(grid_zone %in% c('32U'))
 
+saveRDS(mgrs_tiles_germany, '../data/mgrs_de.rds')
+
 ggplot() +
   geom_sf(
     data = mgrs_tiles_germany,
@@ -100,23 +102,23 @@ ggplot() +
 
 
 
-mgrs_tiles_germany_clipped <- st_intersection(
-  mgrs_tiles_germany,
-  germany_union
-)
-
-ggplot() +
-  geom_sf(
-    data = mgrs_tiles_germany_clipped,
-    fill = NA,
-    color = "firebrick",
-    linewidth = 0.45
-  ) +
-  geom_sf(
-    data = germany_states,
-    fill = NA,
-    color = "grey25",
-    linewidth = 0.25
-  ) +
-  coord_sf(expand = FALSE) +
-  theme_minimal()
+# mgrs_tiles_germany_clipped <- st_intersection(
+#   mgrs_tiles_germany,
+#   germany_union
+# )
+# 
+# ggplot() +
+#   geom_sf(
+#     data = mgrs_tiles_germany_clipped,
+#     fill = NA,
+#     color = "firebrick",
+#     linewidth = 0.45
+#   ) +
+#   geom_sf(
+#     data = germany_states,
+#     fill = NA,
+#     color = "grey25",
+#     linewidth = 0.25
+#   ) +
+#   coord_sf(expand = FALSE) +
+#   theme_minimal()
