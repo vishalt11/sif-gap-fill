@@ -1,2 +1,9 @@
 scripts/data
 scripts/pro_env
+scripts/tmp	
+scripts/config.json
+scripts/pygeodes-config.json
+pygeodes-config.json
+config.json
+scripts/quickstart.ipynb
+tmp

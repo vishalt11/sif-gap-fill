@@ -5,6 +5,14 @@ library(httr2)
 library(jsonlite)
 
 sif_sf <- readRDS("data/ns_sif_mgrs_crop_composition.rds")
+sif_sf <- sif_sf %>% select(-geometry)
+
+write.csv(sif_sf, 'data/ns_sif_mgrs_crop_composition.csv',  row.names = FALSE)
+
+sif_sf <- sif_sf[sif_sf$mgrs_tile == '32UNC',]
+
+unique(format(sif_sf$Delta_Date, '%Y-%m'))
+
 
 stac_url <- "https://geoservice.dlr.de/eoc/ogc/stac/v1"
 collection <- "S2_L3A_WASP"

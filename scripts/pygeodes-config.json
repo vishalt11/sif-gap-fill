@@ -1,9 +1,9 @@
 {
     "api_key": null,
     "logging_level": "INFO",
-    "download_dir": "D:\\UE\\4_Semester\\code\\scripts",
+    "download_dir": "",
     "checksum_error": true,
-    "use_async_requests": false,
+    "use_async_requests": true,
     "nb_max_items": 800000000,
     "aws_access_key_id": null,
     "aws_secret_access_key": null,
