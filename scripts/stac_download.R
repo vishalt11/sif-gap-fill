@@ -4,14 +4,24 @@ library(terra)
 library(httr2)
 library(jsonlite)
 
-sif_sf <- readRDS("data/ns_sif_mgrs_crop_composition.rds")
-sif_sf <- sif_sf %>% select(-geometry)
+sif_sf <- readRDS("data/sa_sif_mgrs_crop_composition.rds")
 
-write.csv(sif_sf, 'data/ns_sif_mgrs_crop_composition.csv',  row.names = FALSE)
 
-sif_sf <- sif_sf[sif_sf$mgrs_tile == '32UNC',]
+sif_df <- readRDS("data/ba_sif_mgrs_crop_composition.rds") %>%
+  st_drop_geometry()
 
-unique(format(sif_sf$Delta_Date, '%Y-%m'))
+sif_df <- sif_df %>% filter(ww_pct>=0.3)
+
+# sif_df %>%
+#   #filter( price<300 ) %>%
+#   ggplot(aes(x=ww_pct)) +
+#   geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
+sort(table(sif_df$mgrs_tile))
+
+#write.csv(sif_df, "data/sa_sif_mgrs_crop_composition.csv", row.names = FALSE)
+
+#sif_sf <- sif_sf[sif_sf$mgrs_tile == '32UQV',]
+#unique(format(sif_sf$Delta_Date, '%Y-%m'))
 
 
 stac_url <- "https://geoservice.dlr.de/eoc/ogc/stac/v1"

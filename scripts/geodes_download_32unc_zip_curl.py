@@ -13,10 +13,10 @@ from pygeodes import Config, Geodes
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 CONFIG_FILE = Path("config.json")
-SIF_CSV = Path("data/ns_sif_mgrs_crop_composition.csv")
+SIF_CSV = Path("data/sa_sif_mgrs_crop_composition.csv")
 
 COLLECTION_ID = "THEIA_REFLECTANCE_SENTINEL2_L3A"
-TILE = "32UNC"
+TILE = "32UQC"
 GRID_CODE = f"T{TILE}"
 
 BASE_OUT_DIR = Path("data/geodes_wasp_zips") / TILE
@@ -24,7 +24,7 @@ CHECKLIST_PATH = BASE_OUT_DIR / f"geodes_{TILE}_download_checklist.csv"
 
 RECHECK_MISSING = False
 CURL_RETRIES = "20"
-CURL_RETRY_DELAY_SECONDS = "30"
+CURL_RETRY_DELAY_SECONDS = "10"
 
 
 def utc_now() -> str:
@@ -63,10 +63,38 @@ def configure_geodes() -> tuple[Geodes, Config]:
 
 
 def target_months_from_sif() -> list[str]:
-    sif = pd.read_csv(SIF_CSV, parse_dates=["Delta_Date"])
+    sif = pd.read_csv(SIF_CSV)
 
     if "mgrs_tile" in sif.columns:
-        sif = sif.loc[sif["mgrs_tile"].astype(str).eq(TILE)].copy()
+        tile_values = (
+            sif["mgrs_tile"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .str.replace("^T", "", regex=True)
+        )
+        sif = sif.loc[tile_values.eq(TILE)].copy()
+
+    if sif.empty:
+        available_tiles = pd.read_csv(SIF_CSV, usecols=["mgrs_tile"])
+        tile_counts = (
+            available_tiles["mgrs_tile"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .str.replace("^T", "", regex=True)
+            .value_counts()
+            .head(20)
+        )
+        raise RuntimeError(
+            f"No rows found for tile {TILE} in {SIF_CSV}. "
+            f"Top available tiles:\n{tile_counts.to_string()}"
+        )
+
+    sif["Delta_Date"] = pd.to_datetime(sif["Delta_Date"], errors="coerce")
+    invalid_dates = sif["Delta_Date"].isna().sum()
+    if invalid_dates:
+        print(f"Warning: {invalid_dates} Delta_Date values could not be parsed and will be ignored.")
 
     months = sorted(sif["Delta_Date"].dt.strftime("%Y-%m").dropna().unique())
 
