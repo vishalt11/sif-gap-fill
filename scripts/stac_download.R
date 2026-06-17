@@ -7,7 +7,7 @@ library(jsonlite)
 sif_sf <- readRDS("data/sa_sif_mgrs_crop_composition.rds")
 
 
-sif_df <- readRDS("data/ba_sif_mgrs_crop_composition.rds") %>%
+sif_df <- readRDS("data/sa_sif_mgrs_crop_composition.rds") %>%
   st_drop_geometry()
 
 sif_df <- sif_df %>% filter(ww_pct>=0.3)
