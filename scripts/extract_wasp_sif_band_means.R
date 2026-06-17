@@ -4,14 +4,13 @@ library(terra)
 
 sif_file <- "data/ba_sif_mgrs_crop_composition.rds"
 
-wasp_root <- "data/geodes_wasp_zips/32UQV/2019"
+wasp_root <- "data/geodes_wasp_zips/32UQV"
 
 target_tile <- "32UQV"
-target_year <- 2019
 target_bands <- c("B2", "B3", "B4", "B8")
 
-output_rds <- "data/ba_sif_32UQV_2019_wasp_10m_band_means.rds"
-output_csv <- "data/ba_sif_32UQV_2019_wasp_10m_band_means.csv"
+output_rds <- "data/ba_sif_32UQV_wasp_10m_band_means.rds"
+output_csv <- "data/ba_sif_32UQV_wasp_10m_band_means.csv"
 
 reflectance_quantification_value <- 10000
 reflectance_nodata <- -10000
@@ -57,13 +56,25 @@ product_month <- function(product_id) {
 find_wasp_products <- function(wasp_root) {
   check_dir_exists(wasp_root)
 
-  tibble(product_dir_outer = list.dirs(wasp_root, recursive = FALSE, full.names = TRUE)) %>%
-    mutate(
+  year_dirs <- tibble(year_dir = list.dirs(wasp_root, recursive = FALSE, full.names = TRUE)) %>%
+    mutate(year = basename(year_dir)) %>%
+    filter(str_detect(year, "^[0-9]{4}$"))
+
+  year_dirs %>%
+    mutate(product_dir_outer = map(year_dir, ~ list.dirs(.x, recursive = FALSE, full.names = TRUE))) %>%
+    select(-year_dir) %>%
+    unnest(product_dir_outer) %>%
+    transmute(
+      product_year = as.integer(year),
       product_id = basename(product_dir_outer),
+      product_dir_outer,
       product_dir = file.path(product_dir_outer, product_id),
       year_month = map_chr(product_id, product_month)
     ) %>%
-    filter(dir.exists(product_dir)) %>%
+    filter(
+      str_detect(product_id, paste0("_T", target_tile, "_")),
+      dir.exists(product_dir)
+    ) %>%
     arrange(year_month)
 }
 
@@ -98,6 +109,7 @@ make_sif_polygons <- function(sif_df) {
 extract_band_summary <- function(band_id, product_dir, product_id, flg_r1, sif_polygons_utm) {
   message("Extracting ", band_id, " means for ", nrow(sif_polygons_utm), " SIF polygons.")
 
+  # need to adjust this 
   band <- rast(check_file_exists(wasp_file(product_dir, product_id, "FRC", band_id)))
   band <- crop(band, vect(sif_polygons_utm))
 
@@ -117,31 +129,26 @@ extract_band_summary <- function(band_id, product_dir, product_id, flg_r1, sif_p
     touches = FALSE
   )
 
-  valid_pixels <- terra::extract(
-    ifel(is.na(band), 0, 1),
-    vect(sif_polygons_utm),
-    fun = sum,
-    na.rm = TRUE,
-    touches = FALSE
-  )
-
   value_col <- setdiff(names(mean_values), "ID")[1]
-  count_col <- setdiff(names(valid_pixels), "ID")[1]
   band_lower <- str_to_lower(band_id)
 
-  mean_values %>%
+  band_summary <- mean_values %>%
     transmute(
       extract_id = ID,
       !!paste0("mean_", band_lower) := .data[[value_col]]
-    ) %>%
-    left_join(
-      valid_pixels %>%
-        transmute(
-          extract_id = ID,
-          !!paste0("valid_pixel_count_", band_lower) := as.integer(.data[[count_col]])
-        ),
-      by = "extract_id"
     )
+
+  # To audit extraction quality later, re-enable a valid-pixel-count extract here.
+  rm(band, flg_crop, mean_values)
+  gc(verbose = FALSE)
+
+  band_summary
+}
+
+wasp_products <- find_wasp_products(wasp_root)
+
+if (nrow(wasp_products) == 0) {
+  stop("No local WASP products found under ", wasp_root, call. = FALSE)
 }
 
 sif_rows <- readRDS(check_file_exists(sif_file)) %>%
@@ -150,24 +157,20 @@ sif_rows <- readRDS(check_file_exists(sif_file)) %>%
     Delta_Date = as.Date(Delta_Date),
     year_month = format(Delta_Date, "%Y-%m")
   ) %>%
-  filter(
-    mgrs_tile == target_tile,
-    as.integer(format(Delta_Date, "%Y")) == target_year
-  ) %>%
+  filter(mgrs_tile == target_tile) %>%
   mutate(sif_extract_id = row_number())
 
 if (nrow(sif_rows) == 0) {
   stop(
     "No SIF rows found for tile ", target_tile,
-    " and year ", target_year,
     " in ", sif_file,
     call. = FALSE
   )
 }
 
-message("Selected ", nrow(sif_rows), " SIF rows for ", target_tile, " / ", target_year, ".")
+message("Selected ", nrow(sif_rows), " SIF rows for ", target_tile, ".")
+message("Found ", nrow(wasp_products), " local WASP products under ", wasp_root, ".")
 
-wasp_products <- find_wasp_products(wasp_root)
 missing_sif_months <- setdiff(unique(sif_rows$year_month), wasp_products$year_month)
 
 if (length(missing_sif_months) > 0) {
@@ -207,12 +210,17 @@ process_product <- function(product_id, product_dir, year_month) {
     ) %>%
     reduce(left_join, by = "extract_id")
 
-  sif_polygons %>%
+  product_result <- sif_polygons %>%
     left_join(band_summaries, by = "extract_id") %>%
     mutate(
       wasp_product_id = product_id,
       wasp_year_month = year_month
     )
+
+  rm(flg_r1, sif_polygons, sif_polygons_utm, band_summaries)
+  gc(verbose = FALSE)
+
+  product_result
 }
 
 ba_sif_wasp_10m_means <- pmap(
@@ -221,7 +229,7 @@ ba_sif_wasp_10m_means <- pmap(
 ) %>%
   compact() %>%
   bind_rows() %>%
-  select(-year_month, -extract_id)
+  select(-any_of(c("year_month", "extract_id")))
 
 if (nrow(ba_sif_wasp_10m_means) == 0) {
   stop("No SIF rows matched the local WASP products under ", wasp_root, call. = FALSE)
