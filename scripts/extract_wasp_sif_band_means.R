@@ -9,8 +9,8 @@ wasp_root <- "data/geodes_wasp_zips/32UQV"
 target_tile <- "32UQV"
 target_bands <- c("B2", "B3", "B4", "B8")
 
-output_rds <- "data/ba_sif_32UQV_wasp_10m_band_means.rds"
-output_csv <- "data/ba_sif_32UQV_wasp_10m_band_means.csv"
+output_rds <- "data/ba_sif_32UQV_wasp_band_means.rds"
+output_csv <- "data/ba_sif_32UQV_wasp_band_means.csv"
 
 reflectance_quantification_value <- 10000
 reflectance_nodata <- -10000

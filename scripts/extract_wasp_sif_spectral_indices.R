@@ -5,7 +5,7 @@ library(terra)
 sif_file <- "data/ba_sif_mgrs_crop_composition.rds"
 wasp_tile_root <- "data/geodes_wasp_zips"
 
-target_tile <- "32UQV"
+target_tile <- "32UNA"
 target_indices <- c("ndvi", "ndre", "ndre8a", "psri", "osavi", "ndwi", "nirv", "tcari")
 
 output_rds <- file.path(
@@ -51,7 +51,7 @@ check_dir_exists <- function(path) {
 }
 
 product_month <- function(product_id) {
-  product_date <- str_match(product_id, "^SENTINEL2X_([0-9]{8})-")[, 2]
+  product_date <- str_match(product_id, "^SENTINEL2[A-Z]?_([0-9]{8})-")[, 2]
 
   if (is.na(product_date)) {
     stop("Could not parse product date from: ", product_id, call. = FALSE)
@@ -75,7 +75,8 @@ find_wasp_products <- function(wasp_root, target_tile) {
       product_year = as.integer(year),
       product_id = basename(product_dir_outer),
       product_dir_outer,
-      product_dir = file.path(product_dir_outer, product_id),
+      product_dir_nested = file.path(product_dir_outer, product_id),
+      product_dir = if_else(dir.exists(product_dir_nested), product_dir_nested, product_dir_outer),
       year_month = map_chr(product_id, product_month)
     ) %>%
     filter(
@@ -323,6 +324,26 @@ saveRDS(ba_sif_wasp_spectral_indices, output_rds)
 ba_sif_wasp_spectral_indices %>%
   st_drop_geometry() %>%
   write_csv(output_csv)
+
+ba_sif_wasp_spectral_indices %>%
+  st_drop_geometry() %>%
+  summarise(
+    across(
+      starts_with("mean_"),
+      list(
+        #n = ~ sum(!is.na(.x)),
+        #missing = ~ sum(is.na(.x)),
+        mean = ~ mean(.x, na.rm = TRUE),
+        sd = ~ sd(.x, na.rm = TRUE),
+        min = ~ min(.x, na.rm = TRUE),
+        #median = ~ median(.x, na.rm = TRUE),
+        max = ~ max(.x, na.rm = TRUE)
+      ),
+      .names = "{.col}_{.fn}"
+    )
+  )
+
+
 
 message("Saved RDS to ", output_rds)
 message("Saved CSV to ", output_csv)
