@@ -96,8 +96,6 @@ land_flag_value <- 4
 
 band_ids_10m <- c("B2", "B3", "B4", "B8")
 band_ids_20m <- c("B5", "B6", "B7", "B8A", "B11", "B12")
-band_ids <- c(band_ids_10m, band_ids_20m)
-
 wasp_file <- function(type, band_or_res = NULL) {
   filename <- if (is.null(band_or_res)) {
     paste0(wasp_product_id, "_", type, ".tif")
@@ -194,6 +192,40 @@ index_layers_10m <- list(
   )
 )
 
+stretch_to_byte <- function(raster_layer, probs = c(0.02, 0.98)) {
+  raster_values <- terra::values(raster_layer, mat = FALSE)
+  limits <- quantile(raster_values, probs = probs, na.rm = TRUE, names = FALSE)
+
+  if (!all(is.finite(limits)) || limits[1] == limits[2]) {
+    return(ifel(is.na(raster_layer), NA, 0))
+  }
+
+  stretched <- (raster_layer - limits[1]) / (limits[2] - limits[1])
+  stretched <- clamp(stretched, lower = 0, upper = 1, values = TRUE)
+  round(stretched * 255)
+}
+
+rgb_display_raster <- (
+  stretch_to_byte(band_layers_10m$B4) * 65536 +
+    stretch_to_byte(band_layers_10m$B3) * 256 +
+    stretch_to_byte(band_layers_10m$B2)
+) %>%
+  mask(target_wasp_crs)
+
+rgb_palette <- function(values) {
+  value_is_na <- is.na(values)
+  values[value_is_na] <- 0
+  values <- as.integer(values)
+
+  red <- values %/% 65536
+  green <- (values %% 65536) %/% 256
+  blue <- values %% 256
+
+  colors <- grDevices::rgb(red, green, blue, maxColorValue = 255)
+  colors[value_is_na] <- "transparent"
+  colors
+}
+
 sif_palette <- colorNumeric(
   palette = grDevices::hcl.colors(256, "viridis"),
   domain = sif_polygons_2020$Daily_SIF_740nm,
@@ -236,7 +268,24 @@ add_continuous_raster <- function(map, raster_layer, group, palette, opacity) {
     )
 }
 
-band_layer_groups <- paste("Band", names(band_layers_10m))
+add_continuous_legend <- function(map, raster_layer, group, palette, title) {
+  raster_values <- terra::values(raster_layer, mat = FALSE)
+  raster_palette <- colorNumeric(
+    palette = palette,
+    domain = raster_values,
+    na.color = "transparent"
+  )
+
+  map %>%
+    addLegend(
+      pal = raster_palette,
+      values = raster_values,
+      title = title,
+      group = group,
+      position = "bottomright"
+    )
+}
+
 index_layer_groups <- toupper(names(index_layers_10m))
 
 ns_sif_leaflet <- leaflet() %>%
@@ -248,17 +297,16 @@ ns_sif_leaflet <- leaflet() %>%
     project = TRUE,
     maxBytes = 50 * 1024 * 1024,
     group = "Crop types 2020"
+  ) %>%
+  addRasterImage(
+    raster::raster(rgb_display_raster),
+    colors = rgb_palette,
+    opacity = 1,
+    project = TRUE,
+    method = "ngb",
+    maxBytes = 50 * 1024 * 1024,
+    group = "True color RGB"
   )
-
-for (band_id in names(band_layers_10m)) {
-  ns_sif_leaflet <- add_continuous_raster(
-    ns_sif_leaflet,
-    band_layers_10m[[band_id]],
-    group = paste("Band", band_id),
-    palette = grDevices::gray.colors(256, start = 0, end = 1),
-    opacity = 0.65
-  )
-}
 
 for (index_id in names(index_layers_10m)) {
   ns_sif_leaflet <- add_continuous_raster(
@@ -266,7 +314,17 @@ for (index_id in names(index_layers_10m)) {
     index_layers_10m[[index_id]],
     group = toupper(index_id),
     palette = grDevices::hcl.colors(256, "RdYlGn"),
-    opacity = 0.65
+    opacity = 0.85
+  )
+}
+
+for (index_id in names(index_layers_10m)) {
+  ns_sif_leaflet <- add_continuous_legend(
+    ns_sif_leaflet,
+    index_layers_10m[[index_id]],
+    group = toupper(index_id),
+    palette = grDevices::hcl.colors(256, "RdYlGn"),
+    title = toupper(index_id)
   )
 }
 
@@ -284,7 +342,7 @@ ns_sif_leaflet <- ns_sif_leaflet %>%
   addPolygons(
     data = target_ns_32upc,
     fill = FALSE,
-    color = "#2dc0fb",
+    color = "red",
     weight = 3,
     opacity = 1,
     group = "Target KML"
@@ -301,12 +359,20 @@ ns_sif_leaflet <- ns_sif_leaflet %>%
     pal = sif_palette,
     values = sif_polygons_2020$Daily_SIF_740nm,
     title = "Daily SIF 740 nm",
+    group = "2020 SIF polygons",
+    position = "bottomright"
+  ) %>%
+  addLegend(
+    pal = crop_palette,
+    values = crop_classes$code,
+    title = "Crop types 2020",
+    group = "Crop types 2020",
     position = "bottomright"
   ) %>%
   addLayersControl(
     overlayGroups = c(
       "Crop types 2020",
-      band_layer_groups,
+      "True color RGB",
       index_layer_groups,
       "2020 SIF polygons",
       "Target KML",
@@ -314,7 +380,7 @@ ns_sif_leaflet <- ns_sif_leaflet %>%
     ),
     options = layersControlOptions(collapsed = FALSE)
   ) %>%
-  hideGroup(c(band_layer_groups, index_layer_groups)) %>%
+  hideGroup(c("Crop types 2020", "True color RGB", index_layer_groups)) %>%
   addScaleBar(position = "bottomleft") %>%
   fitBounds(
     lng1 = target_bbox[["xmin"]],
