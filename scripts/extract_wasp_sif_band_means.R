@@ -2,19 +2,29 @@ library(tidyverse)
 library(sf)
 library(terra)
 
-sif_file <- "data/ba_sif_mgrs_crop_composition.rds"
+state_prefix <- "ba"
+sif_file <- file.path("data", paste0(state_prefix, "_sif_mgrs_crop_composition.rds"))
+wasp_tile_root <- "data/geodes_wasp_zips"
 
-wasp_root <- "data/geodes_wasp_zips/32UQV"
+target_tile <- "32UNA"
+target_bands_10m <- c("B2", "B3", "B4", "B8")
+target_bands_20m <- c("B5", "B6", "B7", "B8A", "B11", "B12")
+target_bands <- c(target_bands_10m, target_bands_20m)
 
-target_tile <- "32UQV"
-target_bands <- c("B2", "B3", "B4", "B8")
-
-output_rds <- "data/ba_sif_32UQV_wasp_band_means.rds"
-output_csv <- "data/ba_sif_32UQV_wasp_band_means.csv"
+output_rds <- file.path(
+  "data",
+  paste0(state_prefix, "_sif_", target_tile, "_wasp_band_means.rds")
+)
+output_csv <- file.path(
+  "data",
+  paste0(state_prefix, "_sif_", target_tile, "_wasp_band_means.csv")
+)
 
 reflectance_quantification_value <- 10000
 reflectance_nodata <- -10000
 land_flag_value <- 4
+
+wasp_root <- file.path(wasp_tile_root, target_tile)
 
 wasp_file <- function(product_dir, product_id, type, band_or_res = NULL) {
   filename <- if (is.null(band_or_res)) {
@@ -44,7 +54,7 @@ check_dir_exists <- function(path) {
 }
 
 product_month <- function(product_id) {
-  product_date <- str_match(product_id, "^SENTINEL2X_([0-9]{8})-")[, 2]
+  product_date <- str_match(product_id, "^SENTINEL2[A-Z]?_([0-9]{8})-")[, 2]
 
   if (is.na(product_date)) {
     stop("Could not parse product date from: ", product_id, call. = FALSE)
@@ -53,7 +63,7 @@ product_month <- function(product_id) {
   format(as.Date(product_date, format = "%Y%m%d"), "%Y-%m")
 }
 
-find_wasp_products <- function(wasp_root) {
+find_wasp_products <- function(wasp_root, target_tile) {
   check_dir_exists(wasp_root)
 
   year_dirs <- tibble(year_dir = list.dirs(wasp_root, recursive = FALSE, full.names = TRUE)) %>%
@@ -68,7 +78,8 @@ find_wasp_products <- function(wasp_root) {
       product_year = as.integer(year),
       product_id = basename(product_dir_outer),
       product_dir_outer,
-      product_dir = file.path(product_dir_outer, product_id),
+      product_dir_nested = file.path(product_dir_outer, product_id),
+      product_dir = if_else(dir.exists(product_dir_nested), product_dir_nested, product_dir_outer),
       year_month = map_chr(product_id, product_month)
     ) %>%
     filter(
@@ -76,6 +87,14 @@ find_wasp_products <- function(wasp_root) {
       dir.exists(product_dir)
     ) %>%
     arrange(year_month)
+}
+
+band_resolution_group <- function(band_id) {
+  case_when(
+    band_id %in% target_bands_10m ~ "R1",
+    band_id %in% target_bands_20m ~ "R2",
+    TRUE ~ NA_character_
+  )
 }
 
 make_sif_polygon <- function(lon1, lat1, lon2, lat2, lon3, lat3, lon4, lat4) {
@@ -106,14 +125,21 @@ make_sif_polygons <- function(sif_df) {
     st_make_valid()
 }
 
-extract_band_summary <- function(band_id, product_dir, product_id, flg_r1, sif_polygons_utm) {
+extract_band_summary <- function(band_id, product_dir, product_id, flg_r1, flg_r2, sif_polygons_utm) {
   message("Extracting ", band_id, " means for ", nrow(sif_polygons_utm), " SIF polygons.")
 
-  # need to adjust this 
+  band_group <- band_resolution_group(band_id)
+
+  if (is.na(band_group)) {
+    stop("Unsupported band: ", band_id, call. = FALSE)
+  }
+
+  flg <- if (band_group == "R1") flg_r1 else flg_r2
+
   band <- rast(check_file_exists(wasp_file(product_dir, product_id, "FRC", band_id)))
   band <- crop(band, vect(sif_polygons_utm))
 
-  flg_crop <- crop(flg_r1, band)
+  flg_crop <- crop(flg, band)
 
   band <- ifel(
     flg_crop == land_flag_value & band != reflectance_nodata,
@@ -145,7 +171,7 @@ extract_band_summary <- function(band_id, product_dir, product_id, flg_r1, sif_p
   band_summary
 }
 
-wasp_products <- find_wasp_products(wasp_root)
+wasp_products <- find_wasp_products(wasp_root, target_tile)
 
 if (nrow(wasp_products) == 0) {
   stop("No local WASP products found under ", wasp_root, call. = FALSE)
@@ -195,6 +221,7 @@ process_product <- function(product_id, product_dir, year_month) {
   sif_polygons <- make_sif_polygons(sif_rows_month)
 
   flg_r1 <- rast(check_file_exists(wasp_file(product_dir, product_id, "FLG", "R1")))
+  flg_r2 <- rast(check_file_exists(wasp_file(product_dir, product_id, "FLG", "R2")))
   target_crs <- crs(flg_r1)
 
   sif_polygons_utm <- sif_polygons %>%
@@ -206,6 +233,7 @@ process_product <- function(product_id, product_dir, year_month) {
       product_dir = product_dir,
       product_id = product_id,
       flg_r1 = flg_r1,
+      flg_r2 = flg_r2,
       sif_polygons_utm = sif_polygons_utm
     ) %>%
     reduce(left_join, by = "extract_id")
@@ -217,13 +245,13 @@ process_product <- function(product_id, product_dir, year_month) {
       wasp_year_month = year_month
     )
 
-  rm(flg_r1, sif_polygons, sif_polygons_utm, band_summaries)
+  rm(flg_r1, flg_r2, sif_polygons, sif_polygons_utm, band_summaries)
   gc(verbose = FALSE)
 
   product_result
 }
 
-ba_sif_wasp_10m_means <- pmap(
+sif_wasp_band_means <- pmap(
   wasp_products %>% select(product_id, product_dir, year_month),
   process_product
 ) %>%
@@ -231,13 +259,13 @@ ba_sif_wasp_10m_means <- pmap(
   bind_rows() %>%
   select(-any_of(c("year_month", "extract_id")))
 
-if (nrow(ba_sif_wasp_10m_means) == 0) {
+if (nrow(sif_wasp_band_means) == 0) {
   stop("No SIF rows matched the local WASP products under ", wasp_root, call. = FALSE)
 }
 
-saveRDS(ba_sif_wasp_10m_means, output_rds)
+saveRDS(sif_wasp_band_means, output_rds)
 
-ba_sif_wasp_10m_means %>%
+sif_wasp_band_means %>%
   st_drop_geometry() %>%
   write_csv(output_csv)
 
