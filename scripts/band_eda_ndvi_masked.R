@@ -186,6 +186,22 @@ index_layers_10m <- list(
   )
 )
 
+ndvi_non_crop_threshold <- 0.45
+
+crop_raster_10m <- project(crop_raster_target, template_10m, method = "near") %>%
+  mask(target_wasp_crs)
+
+non_crop_or_no_data <- is.na(crop_raster_10m) | crop_raster_10m == 0
+
+low_ndvi_non_crop <- non_crop_or_no_data &
+  !is.na(index_layers_10m$ndvi) &
+  index_layers_10m$ndvi < ndvi_non_crop_threshold
+
+index_layers_10m_ndvi_masked <- map(
+  index_layers_10m,
+  ~ ifel(low_ndvi_non_crop, NA, .x)
+)
+
 stretch_to_byte <- function(raster_layer, probs = c(0.02, 0.98)) {
   raster_values <- terra::values(raster_layer, mat = FALSE)
   limits <- quantile(raster_values, probs = probs, na.rm = TRUE, names = FALSE)
@@ -278,10 +294,10 @@ add_continuous_legend <- function(map, raster_layer, group, palette, title) {
       title = title,
       group = group,
       position = "bottomright"
-    )
+  )
 }
 
-index_layer_groups <- toupper(names(index_layers_10m))
+index_layer_groups <- paste(toupper(names(index_layers_10m_ndvi_masked)), "masked")
 
 ns_sif_leaflet <- leaflet() %>%
   addProviderTiles(providers$Esri.WorldImagery) %>%
@@ -303,23 +319,23 @@ ns_sif_leaflet <- leaflet() %>%
     group = "True color RGB"
   )
 
-for (index_id in names(index_layers_10m)) {
+for (index_id in names(index_layers_10m_ndvi_masked)) {
   ns_sif_leaflet <- add_continuous_raster(
     ns_sif_leaflet,
-    index_layers_10m[[index_id]],
-    group = toupper(index_id),
+    index_layers_10m_ndvi_masked[[index_id]],
+    group = paste(toupper(index_id), "masked"),
     palette = grDevices::hcl.colors(256, "RdYlGn"),
     opacity = 0.99
   )
 }
 
-for (index_id in names(index_layers_10m)) {
+for (index_id in names(index_layers_10m_ndvi_masked)) {
   ns_sif_leaflet <- add_continuous_legend(
     ns_sif_leaflet,
-    index_layers_10m[[index_id]],
-    group = toupper(index_id),
+    index_layers_10m_ndvi_masked[[index_id]],
+    group = paste(toupper(index_id), "masked"),
     palette = grDevices::hcl.colors(256, "RdYlGn"),
-    title = toupper(index_id)
+    title = paste(toupper(index_id), "masked")
   )
 }
 
