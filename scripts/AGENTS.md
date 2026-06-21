@@ -2,7 +2,11 @@
 
 This project gap-fills spatially and temporally sparse SIF observations using spatially and temporally complete Sentinel-2 bands at 10 m resolution.
 
-The downstream goal is early-warning crop yield prediction for winter wheat, focusing on the top three winter-wheat-producing German states.
+Main goal is to be able to get a SIF value given the pixels ndvi, nirv ... spectral indices values and band values.
+
+We can then construct oco-2 SIF level resoluton sif polygons and mean the 10m x 10m gap filled sif values falling in it. The smallest resolution will be 10m x 10m cause that is what the sentinel - 2 bands are at.
+
+The downstream goal is early-warning crop yield prediction for winter wheat, focusing on the top three winter-wheat-producing German states. This will use the gap filled SIF data to find the respective SIF for the growing months of the wheat fields and derive the crop yield / gpp from it's direct relationship with SIF.
 
 Because complete state-wide multi-band Sentinel-2 processing is very large, the workflow should prioritize high-density winter wheat cluster regions. These clusters are derived from crop-type rasters and used to identify relevant Sentinel-2 tile/subtile regions for download and processing.
 
