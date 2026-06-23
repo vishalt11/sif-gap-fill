@@ -1,23 +1,22 @@
 library(tidyverse)
 library(sf)
 library(terra)
+library(arrow)
 
 state_prefix <- "ba"
 sif_file <- file.path("data", paste0(state_prefix, "_sif_mgrs_crop_composition.csv"))
 wasp_tile_root <- "data/geodes_wasp_zips"
 crop_type_dir <- "data/crop_type_tif"
 
-target_tile <- "32UQV"
+target_tile <- "32UNA"
 
 output_dir <- file.path(
   "data/area_to_point_nonveg_masked",
   paste0(state_prefix, "_sif_", target_tile, "_wasp_area_to_point_20m")
 )
-polygon_output_rds <- file.path(output_dir, "polygon_targets.rds")
-polygon_output_csv <- file.path(output_dir, "polygon_targets.csv")
-manifest_output_csv <- file.path(output_dir, "pixel_table_manifest.csv")
-
-write_pixel_csv <- FALSE
+parquet_dir <- file.path(output_dir, "parquet")
+polygon_output_parquet <- file.path(parquet_dir, "polygon_targets.parquet")
+manifest_output_parquet <- file.path(parquet_dir, "pixel_table_manifest.parquet")
 
 reflectance_quantification_value <- 10000
 reflectance_nodata <- -10000
@@ -33,6 +32,7 @@ target_bands_20m <- c("B5", "B6", "B7", "B8A", "B11", "B12")
 wasp_root <- file.path(wasp_tile_root, target_tile)
 
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(parquet_dir, recursive = TRUE, showWarnings = FALSE)
 
 wasp_file <- function(product_dir, product_id, type, band_or_res = NULL) {
   filename <- if (is.null(band_or_res)) {
@@ -388,20 +388,12 @@ process_product <- function(product_id, product_dir, product_year, year_month) {
     ) %>%
     select(-extract_id)
 
-  output_rds <- file.path(
-    output_dir,
-    paste0(state_prefix, "_sif_", target_tile, "_", year_month, "_area_to_point_pixels_20m.rds")
-  )
-  output_csv <- file.path(
-    output_dir,
-    paste0(state_prefix, "_sif_", target_tile, "_", year_month, "_area_to_point_pixels_20m.csv")
+  output_parquet <- file.path(
+    parquet_dir,
+    paste0(state_prefix, "_sif_", target_tile, "_", year_month, "_area_to_point_pixels_20m.parquet")
   )
 
-  saveRDS(pixel_membership, output_rds)
-
-  if (write_pixel_csv) {
-    write_csv(pixel_membership, output_csv)
-  }
+  write_parquet(pixel_membership, output_parquet)
 
   manifest_row <- tibble(
     wasp_year_month = year_month,
@@ -410,8 +402,7 @@ process_product <- function(product_id, product_dir, product_year, year_month) {
     n_sif_polygons = nrow(sif_rows_month),
     n_pixel_rows = nrow(pixel_membership),
     n_polygons_with_pixels = n_distinct(pixel_membership$sif_extract_id),
-    pixel_rds = output_rds,
-    pixel_csv = if_else(write_pixel_csv, output_csv, NA_character_)
+    pixel_parquet = output_parquet
   )
 
   rm(
@@ -464,8 +455,7 @@ matched_sif_rows <- sif_rows %>%
     year = as.integer(format(Delta_Date, "%Y"))
   )
 
-saveRDS(matched_sif_rows, polygon_output_rds)
-write_csv(matched_sif_rows, polygon_output_csv)
+write_parquet(matched_sif_rows, polygon_output_parquet)
 
 pixel_table_manifest <- pmap(
   wasp_products %>% select(product_id, product_dir, product_year, year_month),
@@ -478,15 +468,9 @@ if (nrow(pixel_table_manifest) == 0) {
   stop("No SIF rows matched the local WASP products under ", wasp_root, call. = FALSE)
 }
 
-write_csv(pixel_table_manifest, manifest_output_csv)
+write_parquet(pixel_table_manifest, manifest_output_parquet)
 
-message("Saved polygon targets RDS to ", polygon_output_rds)
-message("Saved polygon targets CSV to ", polygon_output_csv)
-message("Saved pixel table manifest to ", manifest_output_csv)
-message("Pixel tables were written under ", output_dir)
-
-df <- readRDS('data/area_to_point_nonveg_masked/ba_sif_32UQV_wasp_area_to_point_20m/ba_sif_32UQV_2019-07_area_to_point_pixels_20m.rds')
-
-
-
+message("Saved polygon targets parquet to ", polygon_output_parquet)
+message("Saved pixel table manifest parquet to ", manifest_output_parquet)
+message("Pixel parquet tables were written under ", parquet_dir)
 

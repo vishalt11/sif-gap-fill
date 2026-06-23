@@ -10,16 +10,19 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import torch
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from torch import nn
 
 
-GROUP_COL = "sif_extract_id"
+GROUP_COL = "polygon_uid"
 TARGET_COL = "Daily_SIF_740nm"
 WEIGHT_COL = "pixel_weight_equal"
 
+#DEFAULT_TILES = ["32UNA", "32UNC", "32UPC"]
+DEFAULT_TILES = ["32UNC", "32UPC"]
 BASE_FEATURE_COLUMNS = [
     "pixel_b2",
     "pixel_b3",
@@ -52,6 +55,7 @@ CROP_CODES = [0, 11, 12, 13, 14, 21, 22, 23, 30, 40, 50, 60, 71, 81, 82, 83, 90,
 
 META_COLUMNS = [
     "sif_id",
+    "sif_extract_id",
     "Delta_Date",
     "wasp_year_month",
     "sif_month",
@@ -63,13 +67,23 @@ META_COLUMNS = [
     "crop_pixel_count",
     "Quality_Flag",
     "Metadata.MeasurementMode",
+    "tile_dataset",
 ]
+
+
+@dataclass
+class PixelFile:
+    path: Path
+    tile_dataset: str
 
 
 @dataclass
 class TrainConfig:
     data_dir: str
     output_dir: str
+    tiles: list[str]
+    remove_extreme_sif_outliers: bool
+    outlier_quantile: float
     seed: int
     val_fraction: float
     test_fraction: float
@@ -83,6 +97,14 @@ class TrainConfig:
     loss: str
     max_pixel_files: int | None
     max_polygons: int | None
+
+
+@dataclass
+class InMemoryDataset:
+    features: np.ndarray
+    weights: np.ndarray
+    group_bounds: dict[str, tuple[int, int]]
+    polygon_index: pd.DataFrame
 
 
 class PixelToSifMLP(nn.Module):
@@ -106,86 +128,36 @@ class PixelToSifMLP(nn.Module):
         return self.network(x).squeeze(-1)
 
 
-class PolygonBatcher:
-    def __init__(
-        self,
-        data: pd.DataFrame,
-        polygon_ids: np.ndarray,
-        feature_columns: list[str],
-        device: torch.device,
-    ):
-        self.device = device
-        self.feature_columns = feature_columns
-
-        subset = data[data[GROUP_COL].isin(polygon_ids)].copy()
-        subset = subset.sort_values([GROUP_COL, "pixel_index_in_polygon"], kind="stable")
-        subset = subset.reset_index(drop=True)
-
-        self.group_ids = subset[GROUP_COL].drop_duplicates().to_numpy()
-        group_to_index = {group_id: i for i, group_id in enumerate(self.group_ids)}
-
-        self.x = subset[feature_columns].to_numpy(dtype=np.float32, copy=True)
-        self.weights = subset[WEIGHT_COL].to_numpy(dtype=np.float32, copy=True)
-        self.row_group_index = subset[GROUP_COL].map(group_to_index).to_numpy(dtype=np.int64)
-
-        grouped_indices = subset.groupby(GROUP_COL, sort=False).indices
-        self.indices_by_group = [
-            np.asarray(grouped_indices[group_id], dtype=np.int64)
-            for group_id in self.group_ids
-        ]
-
-        target_values = subset.groupby(GROUP_COL, sort=False)[TARGET_COL].first()
-        self.y = target_values.loc[self.group_ids].to_numpy(dtype=np.float32)
-
-        available_meta = [col for col in META_COLUMNS if col in subset.columns]
-        self.meta = (
-            subset.groupby(GROUP_COL, sort=False)[available_meta]
-            .first()
-            .reindex(self.group_ids)
-            .reset_index()
-        )
-
-    def __len__(self) -> int:
-        return len(self.group_ids)
-
-    def iter_batches(self, batch_polygons: int, shuffle: bool) -> Iterable[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
-        group_order = np.arange(len(self.group_ids))
-
-        if shuffle:
-            np.random.shuffle(group_order)
-
-        for start in range(0, len(group_order), batch_polygons):
-            batch_group_indices = group_order[start : start + batch_polygons]
-            row_indices = np.concatenate([self.indices_by_group[i] for i in batch_group_indices])
-
-            global_to_local = {global_i: local_i for local_i, global_i in enumerate(batch_group_indices)}
-            local_group_index = np.fromiter(
-                (global_to_local[i] for i in self.row_group_index[row_indices]),
-                dtype=np.int64,
-                count=len(row_indices),
-            )
-
-            x = torch.as_tensor(self.x[row_indices], dtype=torch.float32, device=self.device)
-            weights = torch.as_tensor(self.weights[row_indices], dtype=torch.float32, device=self.device)
-            local_group_index_t = torch.as_tensor(local_group_index, dtype=torch.long, device=self.device)
-            y = torch.as_tensor(self.y[batch_group_indices], dtype=torch.float32, device=self.device)
-
-            yield x, weights, local_group_index_t, y
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train a 20 m area-to-point MLP with OCO polygon-aggregated loss."
+        description="Train a 20 m area-to-point MLP from in-memory pixel tables."
     )
     parser.add_argument(
         "--data-dir",
-        default="data/area_to_point_nonveg_masked/ba_sif_32UQV_wasp_area_to_point_20m/parquet",
-        help="Folder containing pixel_table_manifest and pixel parquet files.",
+        default="data/area_to_point_nonveg_masked",
+        help="Parent folder containing tile area-to-point parquet folders.",
     )
     parser.add_argument(
         "--output-dir",
-        default="data/area_to_point_models/ba_sif_32UQV_mlp_area_to_point_20m",
+        default="data/area_to_point_models/three_tiles_mlp_area_to_point_20m",
         help="Folder where model outputs will be written.",
+    )
+    parser.add_argument(
+        "--tiles",
+        nargs="+",
+        default=DEFAULT_TILES,
+        help="Tile folders to load from data-dir. Default: 32UNA 32UNC 32UPC.",
+    )
+    parser.add_argument(
+        "--keep-extreme-sif-outliers",
+        action="store_true",
+        help="Keep extreme SIF outliers. By default, symmetric quantile outliers are removed.",
+    )
+    parser.add_argument(
+        "--outlier-quantile",
+        type=float,
+        default=0.001,
+        help="Two-sided quantile threshold for extreme SIF outlier removal.",
     )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val-fraction", type=float, default=0.15)
@@ -202,13 +174,13 @@ def parse_args() -> argparse.Namespace:
         "--max-pixel-files",
         type=int,
         default=None,
-        help="Optional debug limit on number of monthly pixel parquet files to load.",
+        help="Optional debug limit on number of monthly pixel parquet files to use.",
     )
     parser.add_argument(
         "--max-polygons",
         type=int,
         default=None,
-        help="Optional debug limit on number of SIF polygons to keep after loading.",
+        help="Optional debug limit on number of SIF polygons to keep after filtering.",
     )
     return parser.parse_args()
 
@@ -229,9 +201,9 @@ def resolve_path(path: str | Path, base: Path) -> Path:
     return base / path
 
 
-def load_manifest(data_dir: Path) -> pd.DataFrame:
-    parquet_manifest = data_dir / "pixel_table_manifest.parquet"
-    csv_manifest = data_dir / "pixel_table_manifest.csv"
+def load_manifest(parquet_dir: Path) -> pd.DataFrame:
+    parquet_manifest = parquet_dir / "pixel_table_manifest.parquet"
+    csv_manifest = parquet_dir / "pixel_table_manifest.csv"
 
     if parquet_manifest.exists():
         return pd.read_parquet(parquet_manifest)
@@ -239,55 +211,81 @@ def load_manifest(data_dir: Path) -> pd.DataFrame:
     if csv_manifest.exists():
         return pd.read_csv(csv_manifest)
 
-    raise FileNotFoundError(f"No pixel table manifest found in {data_dir}")
+    raise FileNotFoundError(f"No pixel table manifest found in {parquet_dir}")
+
+
+def resolve_pixel_path(path: str | Path, parquet_dir: Path) -> Path:
+    path = resolve_path(path, Path.cwd())
+
+    if path.exists():
+        return path
+
+    renamed_folder_path = parquet_dir / path.name
+    if renamed_folder_path.exists():
+        return renamed_folder_path
+
+    return path
+
+
+def discover_pixel_files(data_dir: Path, tiles: list[str], max_pixel_files: int | None) -> list[PixelFile]:
+    pixel_files: list[PixelFile] = []
+
+    for tile in tiles:
+        parquet_dir = data_dir / tile / "parquet"
+
+        if not parquet_dir.exists():
+            raise FileNotFoundError(f"Tile parquet folder not found: {parquet_dir}")
+
+        manifest = load_manifest(parquet_dir)
+
+        if "pixel_parquet" not in manifest.columns:
+            raise ValueError(f"Manifest must contain a 'pixel_parquet' column: {parquet_dir}")
+
+        tile_file_count = 0
+        for raw_path in manifest["pixel_parquet"].dropna():
+            if max_pixel_files is not None and len(pixel_files) >= max_pixel_files:
+                break
+
+            path = resolve_pixel_path(raw_path, parquet_dir)
+            if not path.exists():
+                raise FileNotFoundError(f"Pixel parquet file not found: {path}")
+
+            pixel_files.append(PixelFile(path=path, tile_dataset=tile))
+            tile_file_count += 1
+
+        print(f"Discovered {tile_file_count:,} pixel parquet file(s) for {tile}.")
+
+        if max_pixel_files is not None and len(pixel_files) >= max_pixel_files:
+            break
+
+    if len(pixel_files) == 0:
+        raise ValueError("No pixel parquet files found.")
+
+    print(f"Discovered {len(pixel_files):,} pixel parquet file(s) total.")
+    return pixel_files
 
 
 def read_parquet_selected(path: Path, columns: list[str]) -> pd.DataFrame:
-    try:
-        return pd.read_parquet(path, columns=columns)
-    except Exception:
-        data = pd.read_parquet(path)
-        available = [col for col in columns if col in data.columns]
-        return data[available]
+    available_columns = set(pq.read_schema(path).names)
+    selected_columns = [col for col in columns if col in available_columns]
+
+    if len(selected_columns) == 0:
+        raise ValueError(f"None of the requested columns are present in {path}")
+
+    return pd.read_parquet(path, columns=selected_columns)
 
 
-def load_pixel_tables(data_dir: Path, max_pixel_files: int | None) -> pd.DataFrame:
-    manifest = load_manifest(data_dir)
+def add_polygon_uid(data: pd.DataFrame, tile_dataset: str) -> pd.DataFrame:
+    if "sif_extract_id" not in data.columns:
+        raise ValueError("Pixel data must contain 'sif_extract_id'.")
 
-    if "pixel_parquet" not in manifest.columns:
-        raise ValueError("Manifest must contain a 'pixel_parquet' column.")
+    if "mgrs_tile" in data.columns:
+        tile_part = data["mgrs_tile"].fillna(tile_dataset).astype(str)
+    else:
+        tile_part = pd.Series(tile_dataset, index=data.index, dtype=str)
 
-    pixel_paths = [resolve_path(path, Path.cwd()) for path in manifest["pixel_parquet"].dropna()]
-
-    if max_pixel_files is not None:
-        pixel_paths = pixel_paths[:max_pixel_files]
-
-    if len(pixel_paths) == 0:
-        raise ValueError("No pixel parquet files listed in manifest.")
-
-    read_columns = list(
-        dict.fromkeys(
-            [
-                GROUP_COL,
-                TARGET_COL,
-                WEIGHT_COL,
-                "pixel_index_in_polygon",
-                "pixel_crop_code",
-                *BASE_FEATURE_COLUMNS,
-                *META_COLUMNS,
-            ]
-        )
-    )
-
-    frames = []
-    for path in pixel_paths:
-        if not path.exists():
-            raise FileNotFoundError(f"Pixel parquet file not found: {path}")
-        print(f"Loading {path}")
-        frames.append(read_parquet_selected(path, read_columns))
-
-    data = pd.concat(frames, ignore_index=True)
-    print(f"Loaded {len(data):,} pixel rows from {len(pixel_paths):,} parquet files.")
+    data["tile_dataset"] = tile_dataset
+    data[GROUP_COL] = tile_dataset + "__" + tile_part + "__" + data["sif_extract_id"].astype(str)
     return data
 
 
@@ -298,58 +296,121 @@ def add_time_features(data: pd.DataFrame) -> pd.DataFrame:
         data["sif_month"] = pd.to_datetime(data["Delta_Date"]).dt.month
 
     month_angle = 2 * math.pi * data["sif_month"].astype(float) / 12.0
-    data["sif_month_sin"] = np.sin(month_angle)
-    data["sif_month_cos"] = np.cos(month_angle)
+    data["sif_month_sin"] = np.sin(month_angle).astype(np.float32)
+    data["sif_month_cos"] = np.cos(month_angle).astype(np.float32)
     return data
 
 
-def add_crop_dummies(data: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def add_crop_dummies(data: pd.DataFrame) -> pd.DataFrame:
     if "pixel_crop_code" not in data.columns:
-        return data, []
+        for code in CROP_CODES:
+            data[f"pixel_crop_code_{code}"] = np.float32(0.0)
+        data["pixel_crop_code_missing"] = np.float32(1.0)
+        return data
 
-    crop_code = data["pixel_crop_code"].fillna(-1).astype(int)
-    dummy_columns = []
+    crop_code = pd.to_numeric(data["pixel_crop_code"], errors="coerce").fillna(-1).astype(int)
 
     for code in CROP_CODES:
-        col = f"pixel_crop_code_{code}"
-        data[col] = (crop_code == code).astype(np.float32)
-        dummy_columns.append(col)
+        data[f"pixel_crop_code_{code}"] = (crop_code == code).astype(np.float32)
 
     data["pixel_crop_code_missing"] = (crop_code == -1).astype(np.float32)
-    dummy_columns.append("pixel_crop_code_missing")
-    return data, dummy_columns
+    return data
 
 
-def prepare_features(data: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    data = data.dropna(subset=[GROUP_COL, TARGET_COL]).copy()
+def feature_columns() -> list[str]:
+    crop_dummy_columns = [f"pixel_crop_code_{code}" for code in CROP_CODES]
+    crop_dummy_columns.append("pixel_crop_code_missing")
+    return BASE_FEATURE_COLUMNS + crop_dummy_columns + ["sif_month_sin", "sif_month_cos"]
+
+
+def pixel_columns_for_read() -> list[str]:
+    raw_feature_inputs = [
+        col for col in BASE_FEATURE_COLUMNS
+        if col not in {"pixel_is_winter_wheat", "pixel_is_crop"}
+    ]
+
+    return list(
+        dict.fromkeys(
+            [
+                "sif_extract_id",
+                TARGET_COL,
+                WEIGHT_COL,
+                "pixel_index_in_polygon",
+                "pixel_crop_code",
+                *raw_feature_inputs,
+                "pixel_is_winter_wheat",
+                "pixel_is_crop",
+                *META_COLUMNS,
+            ]
+        )
+    )
+
+
+def load_pixel_data(pixel_files: list[PixelFile]) -> pd.DataFrame:
+    frames = []
+
+    for i, pixel_file in enumerate(pixel_files, start=1):
+        print(f"Loading {i:,}/{len(pixel_files):,}: {pixel_file.path.name}")
+        data = read_parquet_selected(pixel_file.path, pixel_columns_for_read())
+        data = add_polygon_uid(data, pixel_file.tile_dataset)
+        frames.append(data)
+
+    combined = pd.concat(frames, ignore_index=True)
+    print(f"Loaded {len(combined):,} pixel rows into memory.")
+    return combined
+
+
+def prepare_model_features(data: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     data = add_time_features(data)
-    data, crop_dummy_columns = add_crop_dummies(data)
+    data = add_crop_dummies(data)
+
+    if "ww_pct" in data.columns:
+        data["ww_pct"] = data["ww_pct"].fillna(0)
 
     for col in ["pixel_is_winter_wheat", "pixel_is_crop"]:
         if col in data.columns:
             data[col] = data[col].fillna(False).astype(np.float32)
 
-    feature_columns = [
-        col for col in BASE_FEATURE_COLUMNS
-        if col in data.columns and col not in {"pixel_is_winter_wheat", "pixel_is_crop"}
-    ]
+    for col in features:
+        if col not in data.columns:
+            data[col] = np.nan
 
-    for col in ["pixel_is_winter_wheat", "pixel_is_crop"]:
-        if col in data.columns:
-            feature_columns.append(col)
+    return data
 
-    feature_columns.extend(crop_dummy_columns)
-    feature_columns.extend(["sif_month_sin", "sif_month_cos"])
 
-    if len(feature_columns) == 0:
-        raise ValueError("No feature columns found.")
+def build_polygon_index(
+    data: pd.DataFrame,
+    remove_extreme_sif_outliers: bool,
+    outlier_quantile: float,
+) -> pd.DataFrame:
+    polygon_index = data.drop_duplicates(subset=[GROUP_COL]).copy()
+    before_polygons = len(polygon_index)
 
-    data = data.dropna(subset=[GROUP_COL, TARGET_COL])
-    data = data[data[feature_columns].notna().any(axis=1)].copy()
+    polygon_index = polygon_index.dropna(subset=[GROUP_COL, TARGET_COL]).copy()
 
-    print(f"Using {len(feature_columns)} feature columns.")
-    print(f"Kept {len(data):,} pixel rows after target/feature filtering.")
-    return data, feature_columns
+    if "Quality_Flag" in polygon_index.columns:
+        polygon_index["Quality_Flag"] = pd.to_numeric(polygon_index["Quality_Flag"], errors="coerce")
+        polygon_index = polygon_index[polygon_index["Quality_Flag"].isin([0, 1])].copy()
+    else:
+        print("Warning: Quality_Flag column not found; no quality filter applied.")
+
+    if "ww_pct" in polygon_index.columns:
+        polygon_index["ww_pct"] = polygon_index["ww_pct"].fillna(0)
+
+    if remove_extreme_sif_outliers:
+        lower = float(polygon_index[TARGET_COL].quantile(outlier_quantile))
+        upper = float(polygon_index[TARGET_COL].quantile(1 - outlier_quantile))
+        polygon_index = polygon_index[
+            polygon_index[TARGET_COL].between(lower, upper, inclusive="both")
+        ].copy()
+        print(
+            f"Removed extreme SIF outliers using {outlier_quantile:.4f}/"
+            f"{1 - outlier_quantile:.4f} polygon quantiles: [{lower:.6f}, {upper:.6f}]"
+        )
+
+    polygon_index = polygon_index.drop_duplicates(subset=[GROUP_COL]).reset_index(drop=True)
+    print(f"Polygon filters kept {len(polygon_index):,}/{before_polygons:,} polygons.")
+    return polygon_index
 
 
 def split_polygon_ids(
@@ -369,6 +430,7 @@ def split_polygon_ids(
         polygon_ids,
         test_size=test_fraction,
         random_state=seed,
+        shuffle=True,
     )
 
     val_fraction_of_train_val = val_fraction / (1 - test_fraction)
@@ -376,48 +438,134 @@ def split_polygon_ids(
         train_val_ids,
         test_size=val_fraction_of_train_val,
         random_state=seed,
+        shuffle=True,
     )
 
     return np.asarray(train_ids), np.asarray(val_ids), np.asarray(test_ids)
 
 
-def fit_preprocessing(
-    data: pd.DataFrame,
-    feature_columns: list[str],
-    train_ids: np.ndarray,
-) -> tuple[pd.DataFrame, dict[str, float], dict[str, float], dict[str, float], list[str]]:
-    train_mask = data[GROUP_COL].isin(train_ids)
+def compute_feature_stats(data: pd.DataFrame, train_ids: np.ndarray, features: list[str]) -> tuple[dict[str, float], dict[str, float]]:
+    train_id_set = set(map(str, train_ids))
+    train_data = data[data[GROUP_COL].isin(train_id_set)]
 
-    medians: dict[str, float] = {}
     means: dict[str, float] = {}
     stds: dict[str, float] = {}
-    kept_features: list[str] = []
 
-    for col in feature_columns:
-        train_values = pd.to_numeric(data.loc[train_mask, col], errors="coerce")
-        median = float(train_values.median(skipna=True))
+    print("Computing feature scaling statistics from training pixels.")
 
-        if not np.isfinite(median):
-            median = 0.0
+    for col in features:
+        values = pd.to_numeric(train_data[col], errors="coerce").to_numpy(dtype=np.float64)
+        finite_values = values[np.isfinite(values)]
 
-        data[col] = pd.to_numeric(data[col], errors="coerce").fillna(median)
-        train_values = data.loc[train_mask, col].astype(float)
+        if len(finite_values) == 0:
+            means[col] = 0.0
+            stds[col] = 1.0
+            continue
 
-        mean = float(train_values.mean())
-        std = float(train_values.std(ddof=0))
+        mean = float(finite_values.mean())
+        std = float(finite_values.std())
 
         if not np.isfinite(std) or std == 0:
             std = 1.0
 
-        medians[col] = median
         means[col] = mean
         stds[col] = std
-        kept_features.append(col)
 
-    for col in kept_features:
-        data[col] = ((data[col].astype(float) - means[col]) / stds[col]).astype(np.float32)
+    return means, stds
 
-    return data, medians, means, stds, kept_features
+
+def standardize_features(data: pd.DataFrame, features: list[str], means: dict[str, float], stds: dict[str, float]) -> pd.DataFrame:
+    for col in features:
+        values = pd.to_numeric(data[col], errors="coerce").astype(float)
+        values = values.fillna(means[col])
+        data[col] = ((values - means[col]) / stds[col]).astype(np.float32)
+    return data
+
+
+def make_equal_weights_if_needed(data: pd.DataFrame) -> pd.DataFrame:
+    if WEIGHT_COL in data.columns:
+        data[WEIGHT_COL] = pd.to_numeric(data[WEIGHT_COL], errors="coerce")
+    else:
+        data[WEIGHT_COL] = np.nan
+
+    missing_weight = data[WEIGHT_COL].isna()
+    if missing_weight.any():
+        group_size = data.groupby(GROUP_COL)[GROUP_COL].transform("size")
+        data.loc[missing_weight, WEIGHT_COL] = 1.0 / group_size.loc[missing_weight]
+
+    data[WEIGHT_COL] = data[WEIGHT_COL].astype(np.float32)
+    return data
+
+
+def build_in_memory_dataset(data: pd.DataFrame, features: list[str], polygon_index: pd.DataFrame) -> InMemoryDataset:
+    sort_columns = [GROUP_COL]
+    if "pixel_index_in_polygon" in data.columns:
+        sort_columns.append("pixel_index_in_polygon")
+
+    data = data.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+
+    group_values = data[GROUP_COL].astype(str).to_numpy()
+    change_positions = np.flatnonzero(group_values[1:] != group_values[:-1]) + 1
+    starts = np.r_[0, change_positions]
+    ends = np.r_[change_positions, len(group_values)]
+    group_bounds = {
+        str(group_values[start]): (int(start), int(end))
+        for start, end in zip(starts, ends)
+    }
+
+    feature_array = data[features].to_numpy(dtype=np.float32, copy=True)
+    weight_array = data[WEIGHT_COL].to_numpy(dtype=np.float32, copy=True)
+
+    return InMemoryDataset(
+        features=feature_array,
+        weights=weight_array,
+        group_bounds=group_bounds,
+        polygon_index=polygon_index.copy(),
+    )
+
+
+def iter_polygon_batches(
+    dataset: InMemoryDataset,
+    polygon_ids: np.ndarray,
+    batch_polygons: int,
+    shuffle: bool,
+    device: torch.device,
+):
+    ids = [str(x) for x in polygon_ids if str(x) in dataset.group_bounds]
+
+    if shuffle:
+        random.shuffle(ids)
+
+    target_by_group = dataset.polygon_index.set_index(GROUP_COL)[TARGET_COL]
+
+    for start in range(0, len(ids), batch_polygons):
+        batch_ids = ids[start : start + batch_polygons]
+        if len(batch_ids) == 0:
+            continue
+
+        index_parts = []
+        local_group_parts = []
+        kept_group_ids = []
+
+        for local_index, group_id in enumerate(batch_ids):
+            group_start, group_end = dataset.group_bounds[group_id]
+            index_parts.append(np.arange(group_start, group_end, dtype=np.int64))
+            local_group_parts.append(np.full(group_end - group_start, local_index, dtype=np.int64))
+            kept_group_ids.append(group_id)
+
+        pixel_indices = np.concatenate(index_parts)
+        local_group_index_np = np.concatenate(local_group_parts)
+
+        x = torch.as_tensor(dataset.features[pixel_indices], dtype=torch.float32, device=device)
+        weights = torch.as_tensor(dataset.weights[pixel_indices], dtype=torch.float32, device=device)
+        local_group_index = torch.as_tensor(local_group_index_np, dtype=torch.long, device=device)
+        y = torch.as_tensor(
+            target_by_group.loc[kept_group_ids].to_numpy(dtype=np.float32),
+            dtype=torch.float32,
+            device=device,
+        )
+
+        yield x, weights, local_group_index, y, np.asarray(kept_group_ids, dtype=object)
 
 
 def aggregate_polygon_predictions(
@@ -437,15 +585,24 @@ def aggregate_polygon_predictions(
 
 def train_one_epoch(
     model: nn.Module,
-    batcher: PolygonBatcher,
+    dataset: InMemoryDataset,
+    train_ids: np.ndarray,
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
     batch_polygons: int,
+    device: torch.device,
 ) -> float:
     model.train()
-    losses = []
+    total_loss = 0.0
+    total_polygons = 0
 
-    for x, weights, local_group_index, y in batcher.iter_batches(batch_polygons, shuffle=True):
+    for x, weights, local_group_index, y, _ in iter_polygon_batches(
+        dataset=dataset,
+        polygon_ids=train_ids,
+        batch_polygons=batch_polygons,
+        shuffle=True,
+        device=device,
+    ):
         optimizer.zero_grad(set_to_none=True)
         pixel_pred = model(x)
         polygon_pred = aggregate_polygon_predictions(
@@ -457,23 +614,34 @@ def train_one_epoch(
         loss = loss_fn(polygon_pred, y)
         loss.backward()
         optimizer.step()
-        losses.append(float(loss.detach().cpu()))
 
-    return float(np.mean(losses))
+        total_loss += float(loss.detach().cpu()) * len(y)
+        total_polygons += len(y)
+
+    if total_polygons == 0:
+        raise RuntimeError("No training batches were produced.")
+
+    return total_loss / total_polygons
 
 
 @torch.no_grad()
 def predict_polygons(
     model: nn.Module,
-    batcher: PolygonBatcher,
+    dataset: InMemoryDataset,
+    polygon_ids: np.ndarray,
     batch_polygons: int,
+    device: torch.device,
 ) -> pd.DataFrame:
     model.eval()
-    predictions = []
-    observed = []
-    group_ids = []
+    rows = []
 
-    for x, weights, local_group_index, y in batcher.iter_batches(batch_polygons, shuffle=False):
+    for x, weights, local_group_index, y, group_ids in iter_polygon_batches(
+        dataset=dataset,
+        polygon_ids=polygon_ids,
+        batch_polygons=batch_polygons,
+        shuffle=False,
+        device=device,
+    ):
         pixel_pred = model(x)
         polygon_pred = aggregate_polygon_predictions(
             pixel_pred,
@@ -482,21 +650,25 @@ def predict_polygons(
             n_polygons=len(y),
         )
 
-        start = len(group_ids)
-        end = start + len(y)
-        group_ids.extend(batcher.group_ids[start:end])
-        observed.extend(y.detach().cpu().numpy())
-        predictions.extend(polygon_pred.detach().cpu().numpy())
+        rows.append(
+            pd.DataFrame(
+                {
+                    GROUP_COL: group_ids,
+                    "observed_sif": y.detach().cpu().numpy(),
+                    "predicted_sif": polygon_pred.detach().cpu().numpy(),
+                }
+            )
+        )
 
-    pred_df = pd.DataFrame(
-        {
-            GROUP_COL: group_ids,
-            "observed_sif": np.asarray(observed, dtype=np.float32),
-            "predicted_sif": np.asarray(predictions, dtype=np.float32),
-        }
-    )
+    if len(rows) == 0:
+        raise RuntimeError("No prediction batches were produced.")
 
-    return batcher.meta.merge(pred_df, on=GROUP_COL, how="right")
+    predictions = pd.concat(rows, ignore_index=True)
+
+    available_meta = [col for col in META_COLUMNS if col in dataset.polygon_index.columns and col != GROUP_COL]
+    meta = dataset.polygon_index[[GROUP_COL, *available_meta]].drop_duplicates(subset=[GROUP_COL])
+    predictions = meta.merge(predictions, on=GROUP_COL, how="right")
+    return predictions
 
 
 def compute_metrics(predictions: pd.DataFrame, split: str) -> dict[str, float | str | int]:
@@ -531,6 +703,9 @@ def main() -> None:
     config = TrainConfig(
         data_dir=args.data_dir,
         output_dir=args.output_dir,
+        tiles=args.tiles,
+        remove_extreme_sif_outliers=not args.keep_extreme_sif_outliers,
+        outlier_quantile=args.outlier_quantile,
         seed=args.seed,
         val_fraction=args.val_fraction,
         test_fraction=args.test_fraction,
@@ -554,10 +729,23 @@ def main() -> None:
 
     save_json(output_dir / "config.json", asdict(config))
 
-    data = load_pixel_tables(data_dir, config.max_pixel_files)
-    data, feature_columns = prepare_features(data)
+    pixel_files = discover_pixel_files(
+        data_dir=data_dir,
+        tiles=config.tiles,
+        max_pixel_files=config.max_pixel_files,
+    )
+    features = feature_columns()
 
-    polygon_ids = data[GROUP_COL].drop_duplicates().to_numpy()
+    data = load_pixel_data(pixel_files)
+    data = prepare_model_features(data, features)
+
+    polygon_index = build_polygon_index(
+        data,
+        remove_extreme_sif_outliers=config.remove_extreme_sif_outliers,
+        outlier_quantile=config.outlier_quantile,
+    )
+
+    polygon_ids = polygon_index[GROUP_COL].drop_duplicates().to_numpy()
     train_ids, val_ids, test_ids = split_polygon_ids(
         polygon_ids,
         val_fraction=config.val_fraction,
@@ -566,37 +754,45 @@ def main() -> None:
         max_polygons=config.max_polygons,
     )
 
-    selected_ids = np.concatenate([train_ids, val_ids, test_ids])
+    selected_ids = set(map(str, np.concatenate([train_ids, val_ids, test_ids])))
+    polygon_index = polygon_index[polygon_index[GROUP_COL].isin(selected_ids)].copy()
     data = data[data[GROUP_COL].isin(selected_ids)].copy()
 
-    data, medians, means, stds, feature_columns = fit_preprocessing(
-        data=data,
-        feature_columns=feature_columns,
-        train_ids=train_ids,
+    print(
+        f"Split polygons: train={len(train_ids):,}, "
+        f"validation={len(val_ids):,}, test={len(test_ids):,}"
     )
 
-    save_json(output_dir / "feature_columns.json", feature_columns)
-    save_json(output_dir / "feature_medians.json", medians)
+    means, stds = compute_feature_stats(data, train_ids, features)
+    data = standardize_features(data, features, means, stds)
+    data = make_equal_weights_if_needed(data)
+
+    dataset = build_in_memory_dataset(
+        data=data,
+        features=features,
+        polygon_index=polygon_index,
+    )
+
+    save_json(output_dir / "feature_columns.json", features)
     save_json(output_dir / "feature_means.json", means)
     save_json(output_dir / "feature_stds.json", stds)
+    save_json(output_dir / "feature_impute_values.json", means)
     save_json(
         output_dir / "split_ids.json",
         {
-            "train": [int(x) if isinstance(x, (np.integer, int)) else str(x) for x in train_ids],
-            "validation": [int(x) if isinstance(x, (np.integer, int)) else str(x) for x in val_ids],
-            "test": [int(x) if isinstance(x, (np.integer, int)) else str(x) for x in test_ids],
+            "train": [str(x) for x in train_ids],
+            "validation": [str(x) for x in val_ids],
+            "test": [str(x) for x in test_ids],
         },
     )
+    polygon_index.to_csv(output_dir / "polygon_index_filtered.csv", index=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-
-    train_batcher = PolygonBatcher(data, train_ids, feature_columns, device)
-    val_batcher = PolygonBatcher(data, val_ids, feature_columns, device)
-    test_batcher = PolygonBatcher(data, test_ids, feature_columns, device)
+    print(f"Using {len(features)} feature columns.")
 
     model = PixelToSifMLP(
-        n_features=len(feature_columns),
+        n_features=len(features),
         hidden_layers=config.hidden_layers,
         dropout=config.dropout,
     ).to(device)
@@ -607,9 +803,8 @@ def main() -> None:
         weight_decay=config.weight_decay,
     )
 
-    loss_fn: nn.Module
     if config.loss == "huber":
-        loss_fn = nn.HuberLoss(delta=0.1)
+        loss_fn: nn.Module = nn.HuberLoss(delta=0.1)
     else:
         loss_fn = nn.MSELoss()
 
@@ -620,14 +815,22 @@ def main() -> None:
 
     for epoch in range(1, config.epochs + 1):
         train_loss = train_one_epoch(
-            model,
-            train_batcher,
-            optimizer,
-            loss_fn,
+            model=model,
+            dataset=dataset,
+            train_ids=train_ids,
+            optimizer=optimizer,
+            loss_fn=loss_fn,
             batch_polygons=config.batch_polygons,
+            device=device,
         )
 
-        val_predictions = predict_polygons(model, val_batcher, config.batch_polygons)
+        val_predictions = predict_polygons(
+            model=model,
+            dataset=dataset,
+            polygon_ids=val_ids,
+            batch_polygons=config.batch_polygons,
+            device=device,
+        )
         val_metrics = compute_metrics(val_predictions, "validation")
         val_rmse = float(val_metrics["rmse"])
 
@@ -649,13 +852,13 @@ def main() -> None:
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
-                    "n_features": len(feature_columns),
-                    "feature_columns": feature_columns,
+                    "n_features": len(features),
+                    "feature_columns": features,
                     "hidden_layers": config.hidden_layers,
                     "dropout": config.dropout,
-                    "feature_medians": medians,
                     "feature_means": means,
                     "feature_stds": stds,
+                    "feature_impute_values": means,
                     "config": asdict(config),
                     "best_epoch": best_epoch,
                     "best_val_rmse": best_val_rmse,
@@ -675,12 +878,18 @@ def main() -> None:
     split_predictions = []
     split_metrics = []
 
-    for split_name, batcher in [
-        ("train", train_batcher),
-        ("validation", val_batcher),
-        ("test", test_batcher),
+    for split_name, ids in [
+        ("train", train_ids),
+        ("validation", val_ids),
+        ("test", test_ids),
     ]:
-        predictions = predict_polygons(model, batcher, config.batch_polygons)
+        predictions = predict_polygons(
+            model=model,
+            dataset=dataset,
+            polygon_ids=ids,
+            batch_polygons=config.batch_polygons,
+            device=device,
+        )
         predictions["split"] = split_name
         predictions.to_csv(output_dir / f"polygon_predictions_{split_name}.csv", index=False)
 
