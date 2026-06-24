@@ -5,11 +5,15 @@ library(terra)
 crop_type_dir <- "data/crop_type_tif"
 
 #"NIEDERSACHSEN"                          "SACHSEN-ANHALT"                                         "BAYERN" 
-#c("32UND", "32UNC", "32UPC")             c("32UPC", "32UPB", "32UQC", "32UQB") 
-#"data/ns_sif_mgrs_crop_composition.rds"  "data/sa_sif_mgrs_crop_composition.rds"
-NUTS_NAME <- "BAYERN" 
-target_mgrs_tiles <- c("32UNA", "32UPA", "32UPV", "32UQV", "32UPU", "32UQU")
-output_file <- "data/ba_sif_mgrs_crop_composition.rds"
+#c("32UND", "32UNC", "32UPC")             c("32UPC", "32UPB", "32UQC", "32UQB")       c("32UNA", "32UPA", "32UPV", "32UQV", "32UPU", "32UQU")
+#"data/ns_sif_mgrs_crop_composition.rds"  "data/sa_sif_mgrs_crop_composition.rds"     "data/ba_sif_mgrs_crop_composition.rds"
+
+
+
+
+NUTS_NAME <- "SCHLESWIG-HOLSTEIN" 
+target_mgrs_tiles <- c("32UNE")
+output_file <- "data/sh_sif_mgrs_crop_composition.rds"
 
 
 
@@ -183,6 +187,12 @@ saveRDS(ns_sif_mgrs_crop_composition, output_file)
 
 message("Saved crop composition output to ", output_file)
 
+#-------------------------------------
+library(tidyverse)
+
+df <- readRDS('data/sh_sif_mgrs_crop_composition.rds')
+df <- df %>% sf::st_drop_geometry()
+write.csv(df, "data/sh_sif_mgrs_crop_composition.csv", row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # Visual verification of sif polygon's crop composition

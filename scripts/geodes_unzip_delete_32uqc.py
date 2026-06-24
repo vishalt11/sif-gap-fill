@@ -2,7 +2,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 
-TILE_ROOT = Path(__file__).resolve().parent / "data" / "geodes_wasp_zips" / "32UNA"
+TILE_ROOT = Path(__file__).resolve().parent / "data" / "geodes_wasp_zips" / "32UPE"
 
 
 def is_safe_zip_member(target_dir: Path, member_name: str) -> bool:

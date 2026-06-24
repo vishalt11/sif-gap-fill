@@ -11,10 +11,10 @@ from pygeodes import Config, Geodes
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 CONFIG_FILE = Path("config.json")
-SIF_CSV = Path("data/ns_sif_mgrs_crop_composition.csv")
+SIF_CSV = Path("data/mv_sif_mgrs_crop_composition.csv")
 
 COLLECTION_ID = "THEIA_REFLECTANCE_SENTINEL2_L3A"
-TILE = "32UNC"
+TILE = "33UUV"
 GRID_CODE = f"T{TILE}"
 
 BASE_OUT_DIR = Path("data/geodes_wasp_zips") / TILE

@@ -9,12 +9,12 @@ library(sf)
 
 ctr <- rast('data/crop_type_tif/croptypes_2024.tif')
 
-crop_classes <- readr::read_delim("../data/crop_type_tif/LEGEND_CropTypes.txt", delim = "\t")
+crop_classes <- readr::read_delim("data/crop_type_tif/LEGEND_CropTypes.txt", delim = "\t")
 colnames(crop_classes) <- c("code", "label")
 levels(ctr) <- data.frame(value = crop_classes$code, crop = crop_classes$label)
 
 nuts1_de <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, resolution = "01",epsg = 4326) %>% select(NUTS_NAME, NUTS_ID, geometry)
-nuts1_de  <- subset(nuts1_de, grepl("^DEE", NUTS_ID))
+nuts1_de  <- subset(nuts1_de, grepl("^DEA", NUTS_ID))
 
 nuts3_de <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 3, resolution = "01",epsg = 4326) %>% select(NUTS_NAME, NUTS_ID, geometry)
 
@@ -24,10 +24,10 @@ bav_utm <- vect(bav_utm)
 ctr_bav <- crop(ctr, bav_utm)
 ctr_bav <- mask(ctr_bav, bav_utm)
 
-writeRaster(ctr_bav,"../data/crop_type_tif/croptypes_2024_sachsen-Anhalt.tif", overwrite = TRUE)
+writeRaster(ctr_bav,"data/crop_type_tif/croptypes_2024_nw.tif", overwrite = TRUE)
 
 #-----
-ctr_bav <- rast('../data/crop_type_tif/croptypes_2024_sachsen-Anhalt.tif')
+ctr_bav <- rast('../data/crop_type_tif/croptypes_2024_nw.tif')
 levels(ctr_bav)
 plot(ctr_bav)
 
@@ -48,7 +48,7 @@ high_wheat <- wheat_1km >= 0.4   #  >40% wheat
 plot(wheat_1km)
 plot(high_wheat)
 
-writeRaster(high_wheat, '../data/sachsen-Anhalt_ww_gt40.tif')
+writeRaster(high_wheat, 'data/nw_ww_gt40.tif')
 
 
 #-------------------------------------------------------------------------------

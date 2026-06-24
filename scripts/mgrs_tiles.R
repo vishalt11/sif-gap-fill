@@ -74,9 +74,9 @@ mgrs_tiles_germany <- mgrs_tiles_all %>%
   st_filter(germany_union, .predicate = st_intersects)
 
 #only 32U tiles
-mgrs_tiles_germany <- mgrs_tiles_germany %>% filter(grid_zone %in% c('32U'))
+#mgrs_tiles_germany <- mgrs_tiles_germany %>% filter(grid_zone %in% c('32U'))
 
-saveRDS(mgrs_tiles_germany, '../data/mgrs_de.rds')
+saveRDS(mgrs_tiles_germany, 'data/mgrs_de.rds')
 
 ggplot() +
   geom_sf(

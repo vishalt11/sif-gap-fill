@@ -2,12 +2,12 @@ library(tidyverse)
 library(sf)
 library(terra)
 
-state_prefix <- "ba"
+state_prefix <- "mv"
 sif_file <- file.path("data", paste0(state_prefix, "_sif_mgrs_crop_composition.rds"))
 wasp_tile_root <- "data/geodes_wasp_zips"
 crop_type_dir <- "data/crop_type_tif"
 
-target_tile <- "32UNA"
+target_tile <- "32UPE"
 target_indices <- c("ndvi", "ndre", "ndre8a", "psri", "osavi", "ndwi", "nirv", "tcari")
 
 output_rds <- file.path(
