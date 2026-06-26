@@ -6,45 +6,19 @@ library(furrr)
 library(future)
 
 
-df <- readRDS('data/sif_sf_months2_7_cleaned.rds')
+df <- readRDS("data/sif_sf_months2_7_cleaned.rds")
 
-# spectral_indices_dir <- "data/spectral_indices_means_nonveg_masked"
-fapar_dir <- "data/glass_fapar_modis_250m"
-par_dir <- "data/glass_par_modis_005d"
+evi_dir <- "data/glass_evi_modis_250m"
+output_dir <- "data/extracted_modis_data"
 
 glass_days <- seq(33, 209, by = 8)
 glass_years <- 2019:2024
-fapar_tiles <- c("h18v03", "h18v04")
+evi_tiles <- c("h18v03", "h18v04")
 parallel_workers <- 2
-# 
-# 
-# csv_files <- list.files(
-#   spectral_indices_dir,
-#   pattern = "\\.csv$",
-#   full.names = TRUE
-# )
-# 
-# if (length(csv_files) == 0) {
-#   stop("No CSV files found in: ", spectral_indices_dir)
-# }
-# 
-# df <- csv_files %>%
-#   map_dfr(
-#     ~ read_csv(
-#       .x,
-#       col_types = cols(
-#         sif_id = col_character(),
-#         mgrs_tile = col_character(),
-#         Delta_Date = col_date(),
-#         .default = col_guess()
-#       ),
-#       show_col_types = FALSE
-#     )
-#   )
-# 
-# 
-# 
-# 
+buffer_cells <- 2
+
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
 corner_cols <- c(
   "Lat_corner1", "Lat_corner2", "Lat_corner3", "Lat_corner4",
   "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
@@ -97,6 +71,7 @@ sif_sf <- df %>%
   st_as_sf(crs = 4326) %>%
   st_make_valid() %>%
   mutate(
+    sif_area_km2 = as.numeric(st_area(st_transform(geometry, 3035))) / 1e6,
     sif_row_id = row_number(),
     sif_year = year(Delta_Date),
     sif_doy = yday(Delta_Date),
@@ -107,49 +82,9 @@ sif_sf <- df %>%
     closest_glass_date = as.Date(sprintf("%d-01-01", sif_year)) + closest_doy - 1,
     glass_day_diff = abs(as.integer(Delta_Date - closest_glass_date))
   )
-# 
-# missing_corner_cols <- setdiff(corner_cols, names(df))
-# if (length(missing_corner_cols) > 0) {
-#   stop("Missing corner columns: ", paste(missing_corner_cols, collapse = ", "))
-# }
-# 
-# sif_sf <- df %>%
-#   mutate(across(all_of(corner_cols), as.numeric)) %>%
-#   filter(if_all(all_of(corner_cols), ~ !is.na(.x))) %>%
-#   mutate(
-#     geometry = pmap(
-#       list(
-#         Lon_corner1, Lat_corner1,
-#         Lon_corner2, Lat_corner2,
-#         Lon_corner3, Lat_corner3,
-#         Lon_corner4, Lat_corner4
-#       ),
-#       function(lon1, lat1, lon2, lat2, lon3, lat3, lon4, lat4) {
-#         st_polygon(list(matrix(
-#           c(
-#             lon1, lat1,
-#             lon2, lat2,
-#             lon3, lat3,
-#             lon4, lat4,
-#             lon1, lat1
-#           ),
-#           ncol = 2,
-#           byrow = TRUE
-#         )))
-#       }
-#     )
-#   ) %>%
-#   st_as_sf(crs = 4326) %>%
-#   st_make_valid() %>%
-#   mutate(
-#     sif_row_id = row_number(),
-#     sif_year = year(Delta_Date),
-#     sif_doy = yday(Delta_Date),
-#     closest_doy = map_int(sif_doy,~ if (is.na(.x)) NA_integer_ else glass_days[which.min(abs(glass_days - .x))]),
-#     closest_glass_date = as.Date(sprintf("%d-01-01", sif_year)) + closest_doy - 1,
-#     glass_day_diff = abs(as.integer(Delta_Date - closest_glass_date))
-#   )
 
+
+summary(sif_sf$sif_area_km2)
 
 one_matching_file <- function(dir_path, pattern, description) {
   matches <- list.files(
@@ -170,18 +105,11 @@ one_matching_file <- function(dir_path, pattern, description) {
   matches
 }
 
-fapar_file_path <- function(year, doy, tile) {
-  tile_dir <- file.path(fapar_dir, tile, year)
-  pattern <- sprintf("^GLASS09D01\\.V60\\.A%d%03d\\.%s\\..*\\.hdf$", year, doy, tile)
-  description <- sprintf("FAPAR %d DOY %03d tile %s", year, doy, tile)
+evi_file_path <- function(year, doy, tile) {
+  tile_dir <- file.path(evi_dir, tile, year)
+  pattern <- sprintf("^GLASS14D01\\.V10\\.A%d%03d\\.%s\\..*\\.hdf$", year, doy, tile)
+  description <- sprintf("EVI %d DOY %03d tile %s", year, doy, tile)
   one_matching_file(tile_dir, pattern, description)
-}
-
-par_file_path <- function(year, doy) {
-  year_dir <- file.path(par_dir, year)
-  pattern <- sprintf("^GLASS04B01\\.V42\\.A%d%03d\\..*\\.hdf$", year, doy)
-  description <- sprintf("PAR %d DOY %03d", year, doy)
-  one_matching_file(year_dir, pattern, description)
 }
 
 buffered_polygon_extent <- function(raster, polygons_same_crs, buffer_cells = 2) {
@@ -219,9 +147,9 @@ crop_raster_to_polygon_extent <- function(raster, polygons_same_crs, buffer_cell
   )
 }
 
-read_fapar_mosaic <- function(year, doy, crop_polygons = NULL, buffer_cells = 2) {
-  fapar_rasters <- map(fapar_tiles, function(tile) {
-    path <- fapar_file_path(year, doy, tile)
+read_evi_mosaic <- function(year, doy, crop_polygons = NULL, buffer_cells = 2) {
+  evi_rasters <- map(evi_tiles, function(tile) {
+    path <- evi_file_path(year, doy, tile)
 
     if (is.na(path)) {
       return(NULL)
@@ -236,39 +164,20 @@ read_fapar_mosaic <- function(year, doy, crop_polygons = NULL, buffer_cells = 2)
       return(NULL)
     }
 
-    ifel(r < 0 | r > 1, NA, r)
+    ifel(r < -1 | r > 1, NA, r)
   })
 
-  fapar_rasters <- compact(fapar_rasters)
+  evi_rasters <- compact(evi_rasters)
 
-  if (length(fapar_rasters) == 0) {
+  if (length(evi_rasters) == 0) {
     return(NULL)
   }
 
-  if (length(fapar_rasters) == 1) {
-    return(fapar_rasters[[1]])
+  if (length(evi_rasters) == 1) {
+    return(evi_rasters[[1]])
   }
 
-  do.call(terra::mosaic, c(fapar_rasters, fun = "mean"))
-}
-
-read_par_raster <- function(year, doy, crop_polygons = NULL, buffer_cells = 2) {
-  path <- par_file_path(year, doy)
-
-  if (is.na(path)) {
-    return(NULL)
-  }
-
-  r <- rast(path)
-  if (!is.null(crop_polygons)) {
-    r <- crop_raster_to_polygon_extent(r, crop_polygons, buffer_cells = buffer_cells)
-  }
-
-  if (is.null(r)) {
-    return(NULL)
-  }
-
-  r
+  do.call(terra::mosaic, c(evi_rasters, fun = "mean"))
 }
 
 extract_polygon_mean <- function(raster, polygons_same_crs) {
@@ -288,23 +197,17 @@ extract_polygon_mean <- function(raster, polygons_same_crs) {
   extracted[[2]]
 }
 
-fapar_template <- rast(fapar_file_path(2019, 33, "h18v03"))
-par_template <- rast(par_file_path(2019, 33))
+evi_template <- rast(evi_file_path(2019, 33, "h18v03"))
 
 message("Preparing polygon lookup once.")
 sif_lookup <- sif_sf %>%
   st_drop_geometry() %>%
   select(sif_row_id, sif_year, closest_doy)
 
-message("Transforming polygons to FAPAR CRS once.")
-sif_sf_fapar_crs <- sif_sf %>%
+message("Transforming polygons to EVI CRS once.")
+sif_sf_evi_crs <- sif_sf %>%
   select(sif_row_id) %>%
-  st_transform(crs(fapar_template))
-
-message("Transforming polygons to PAR CRS once.")
-sif_sf_par_crs <- sif_sf %>%
-  select(sif_row_id) %>%
-  st_transform(crs(par_template))
+  st_transform(crs(evi_template))
 
 extract_groups <- sif_sf %>%
   st_drop_geometry() %>%
@@ -317,23 +220,19 @@ plan(multisession, workers = parallel_workers)
 extraction_results <- future_pmap_dfr(
   list(extract_groups$sif_year, extract_groups$closest_doy),
   function(target_year, target_doy) {
-    message("Extracting GLASS values for ", target_year, " DOY ", sprintf("%03d", target_doy))
+    message("Extracting EVI values for ", target_year, " DOY ", sprintf("%03d", target_doy))
 
     group_rows <- which(
       sif_lookup$sif_year == target_year &
         sif_lookup$closest_doy == target_doy
     )
 
-    sif_group_fapar <- sif_sf_fapar_crs[group_rows, ]
-    sif_group_par <- sif_sf_par_crs[group_rows, ]
-
-    fapar_mosaic <- read_fapar_mosaic(target_year, target_doy, sif_group_fapar, buffer_cells = 2)
-    par_raster <- read_par_raster(target_year, target_doy, sif_group_par, buffer_cells = 2)
+    sif_group_evi <- sif_sf_evi_crs[group_rows, ]
+    evi_mosaic <- read_evi_mosaic(target_year, target_doy, sif_group_evi, buffer_cells = buffer_cells)
 
     tibble(
       sif_row_id = sif_lookup$sif_row_id[group_rows],
-      mean_fapar = extract_polygon_mean(fapar_mosaic, sif_group_fapar),
-      mean_par = extract_polygon_mean(par_raster, sif_group_par)
+      mean_evi = extract_polygon_mean(evi_mosaic, sif_group_evi)
     )
   },
   .progress = TRUE,
@@ -343,31 +242,27 @@ extraction_results <- future_pmap_dfr(
 plan(sequential)
 
 sif_sf <- sif_sf %>%
-  left_join(extraction_results, by = "sif_row_id") %>%
-  mutate(apar = mean_fapar * mean_par)
+  left_join(extraction_results, by = "sif_row_id")
 
-message("Combined CSV rows: ", nrow(df))
+message("Input rows after state/year filter: ", nrow(df))
 message("SIF polygons built: ", nrow(sif_sf))
-message("Rows with FAPAR: ", sum(!is.na(sif_sf$mean_fapar)))
-message("Rows with PAR: ", sum(!is.na(sif_sf$mean_par)))
+message("Rows with EVI: ", sum(!is.na(sif_sf$mean_evi)))
 
-summary(sif_sf$mean_fapar)
-summary(sif_sf$mean_par)
-summary(sif_sf$apar)
+summary(sif_sf$mean_evi)
 
-saveRDS(sif_sf, "data/extracted_modis_data/df_3state_fp_par_big.rds")
+saveRDS(sif_sf, file.path(output_dir, "df_3state_evi_big.rds"))
 
 sif_sf %>%
   st_drop_geometry() %>%
-  write_csv("data/extracted_modis_data/df_3state_fp_par_big.csv")
+  write_csv(file.path(output_dir, "df_3state_evi_big.csv"))
 
 #-------------------------------------------------------------------------------
-# testing fapar and par values
+# testing EVI values
 
 set.seed(42)
 test_sif_row_ids <- sif_sf %>%
   st_drop_geometry() %>%
-  filter(!is.na(mean_fapar), !is.na(mean_par)) %>%
+  filter(!is.na(mean_evi)) %>%
   slice_sample(n = 5) %>%
   pull(sif_row_id)
 
@@ -377,42 +272,20 @@ test_results <- map_dfr(test_rows, function(row_index) {
   target_year <- sif_sf$sif_year[row_index]
   target_doy <- sif_sf$closest_doy[row_index]
 
-  fapar_mosaic <- read_fapar_mosaic(target_year, target_doy)
-  par_raster <- read_par_raster(target_year, target_doy)
-  parallel_mean_fapar <- sif_sf$mean_fapar[row_index]
-  parallel_mean_par <- sif_sf$mean_par[row_index]
-  parallel_apar <- sif_sf$apar[row_index]
-  serial_mean_fapar <- extract_polygon_mean(fapar_mosaic, sif_sf_fapar_crs[row_index, ])
-  serial_mean_par <- extract_polygon_mean(par_raster, sif_sf_par_crs[row_index, ])
-  serial_apar <- serial_mean_fapar * serial_mean_par
+  evi_mosaic <- read_evi_mosaic(target_year, target_doy)
+  parallel_mean_evi <- sif_sf$mean_evi[row_index]
+  serial_mean_evi <- extract_polygon_mean(evi_mosaic, sif_sf_evi_crs[row_index, ])
 
   tibble(
     sif_row_id = sif_sf$sif_row_id[row_index],
     sif_year = target_year,
     closest_doy = target_doy,
-    parallel_mean_fapar = parallel_mean_fapar,
-    serial_mean_fapar = serial_mean_fapar,
-    fapar_diff = serial_mean_fapar - parallel_mean_fapar,
-    parallel_mean_par = parallel_mean_par,
-    serial_mean_par = serial_mean_par,
-    par_diff = serial_mean_par - parallel_mean_par,
-    parallel_apar = parallel_apar,
-    serial_apar = serial_apar,
-    apar_diff = serial_apar - parallel_apar
+    parallel_mean_evi = parallel_mean_evi,
+    serial_mean_evi = serial_mean_evi,
+    evi_diff = serial_mean_evi - parallel_mean_evi
   )
 })
 
 print(test_results)
 
 #-------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-

@@ -428,4 +428,69 @@ ggsave(file.path(eda_dir, "sif_by_month_boxplot.png"), p_month_sif, width = 8, h
 
 cat("\nSaved EDA plots to: ", eda_dir, "\n", sep = "")
 
+#-------------------------------------------------------------------------------
+library(terra)
+library(tidyverse)
+library(sf)
+
+df <- readRDS('data/model_data_wpar.rds')
+mgrs <- readRDS('data/mgrs_de.rds')
+
+df_tiles <- unique(df$mgrs_tile)
+
+mgrs_df_tiles <- mgrs %>%
+  filter(mgrs_tile %in% df_tiles) %>%
+  st_transform(4326)
+
+germany_states <- giscoR::gisco_get_nuts(
+  country = "DE",
+  nuts_level = 1,
+  resolution = "03",
+  epsg = 4326
+) %>%
+  st_make_valid()
+germany_bbox <- st_bbox(germany_states)
+
+ggplot() +
+  geom_sf(
+    data = germany_states,
+    fill = "grey95",
+    color = "grey35",
+    linewidth = 0.35
+  ) +
+  geom_sf(
+    data = mgrs_df_tiles,
+    aes(fill = mgrs_tile),
+    color = "black",
+    linewidth = 0.45,
+    alpha = 0.28
+  ) +
+  geom_sf(
+    data = df,
+    fill = NA,
+    color = "red",
+    linewidth = 0.08,
+    alpha = 0.25
+  ) +
+  geom_sf_text(
+    data = mgrs_df_tiles,
+    aes(label = mgrs_tile),
+    size = 3,
+    fontface = "bold"
+  ) +
+  coord_sf(
+    xlim = germany_bbox[c("xmin", "xmax")],
+    ylim = germany_bbox[c("ymin", "ymax")],
+    expand = FALSE
+  ) +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  labs(
+    title = "SIF Polygons and MGRS Tiles",
+    fill = "MGRS tile",
+    x = NULL,
+    y = NULL
+  )
+
+
 
