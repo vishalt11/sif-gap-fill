@@ -550,3 +550,205 @@ gosif_cell_920_bbox <- sf::st_bbox(st_transform(st_buffer(st_transform(gosif_cel
 gosif_cell_920_map <- leaflet::fitBounds(gosif_cell_920_map, lng1 = gosif_cell_920_bbox[["xmin"]], lat1 = gosif_cell_920_bbox[["ymin"]], lng2 = gosif_cell_920_bbox[["xmax"]], lat2 = gosif_cell_920_bbox[["ymax"]])
 
 gosif_cell_920_map
+
+
+#-------------------------------------------------------------------------------
+
+df <- readRDS('data/sif_sf_months2_7_cleaned.rds')
+df <- df[lubridate::year(df$Delta_Date) %in% c('2019', '2020', '2021', '2022', '2023', '2024'),]
+df <- df %>% sf::st_drop_geometry()
+
+df %>%
+  write_csv("338k_cnn_sif.csv")
+
+#-------------------------------------------------------------------------------
+df <- read.csv('data/extracted_modis_data/df_wpar_338k_crop_counts.csv')
+colnames(df)
+
+temp_df <- df[df$Quality_Flag == 0 & df$Metadata.MeasurementMode == 0,]
+
+summary(temp_df[temp_df$Daily_SIF_740nm >= 0,]$active_growth_pct)
+summary(temp_df[temp_df$Daily_SIF_740nm < 0,]$active_growth_pct)
+
+sif_breaks <- seq(
+  floor(min(temp_df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
+  ceiling(max(temp_df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
+  by = 0.25
+)
+
+temp_df_binned <- temp_df %>%
+  mutate(
+    sif_bin = cut(Daily_SIF_740nm, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)
+  )
+
+ggplot(temp_df_binned, aes(x = Daily_SIF_740nm)) +
+  geom_histogram(binwidth = 0.25, boundary = 0, fill = "steelblue", color = "white") +
+  labs(
+    title = "Daily SIF 740 nm Histogram",
+    x = "Daily_SIF_740nm",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+
+summary(df[df$Metadata.MeasurementMode == 0,]$Daily_SIF_740nm)
+summary(df[df$Metadata.MeasurementMode == 1,]$Daily_SIF_740nm)
+
+
+
+#-------------------------------------------
+df <- read.csv('data/cnn_modis_chips/modis_8day_250m_16x16/chip_metadata.csv')
+colnames(df)
+
+summary(df$fapar_valid_fraction)
+summary(df$evi_valid_fraction)
+summary(df$ndvi_valid_fraction)
+summary(df$par_valid_fraction)
+
+sum(df$par_valid_fraction == 0)
+sum(df$par_valid_fraction < 1)
+
+
+
+
+
+#-------------------------------------------------------------------------------
+# 338k sif data readjustments
+library(sf)
+tdf <- read.csv('data/extracted_modis_data/df_wpar_338k_crop_counts.csv')
+# keep only nadir and quality flag = 0
+df <- tdf[tdf$Quality_Flag == 0 & tdf$Metadata.MeasurementMode == 0, ]
+
+sif_breaks <- seq(
+  floor(min(df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
+  ceiling(max(df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
+  by = 0.25
+)
+
+df_binned <- df %>%
+  mutate(sif_bin = cut(Daily_SIF_740nm, breaks = sif_breaks, include.lowest = TRUE, right = FALSE))
+
+table(df_binned$sif_bin)
+
+# remove SIF outliers
+#df <- df %>% filter(Daily_SIF_740nm >= -0.5, Daily_SIF_740nm < 1.75)
+
+#IQR rule
+q <- quantile(df$Daily_SIF_740nm, probs = c(0.25, 0.75), na.rm = TRUE)
+iqr <- q[2] - q[1]
+
+lower <- q[1] - 1.5 * iqr
+upper <- q[2] + 1.5 * iqr
+
+df <- df %>%
+  filter(Daily_SIF_740nm >= lower, Daily_SIF_740nm <= upper)
+
+# give each sif row a aggro climatic zone depending on which of these geometries they fall in
+root_dir <- 'temp'
+files_zones <- c('DE_HZ_5b.geojson', 'DE_HZ_6a.geojson', 'DE_HZ_6b.geojson', 'DE_HZ_7a.geojson', 
+                 'DE_HZ_7b.geojson', 'DE_HZ_8a.geojson', 'DE_HZ_8b.geojson', 'DE_HZ_9a.geojson')
+
+agro_climatic_zones <- files_zones %>%
+  map_dfr(~ sf::read_sf(file.path(root_dir, .x), quiet = TRUE) %>% st_make_valid() %>% dplyr::select(hzs, geometry))
+
+df_sif_polygons <- df %>%
+  mutate(sif_row_id = row_number(), across(all_of(c("Latitude", "Longitude", corner_cols, target_col)), as.numeric)) %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+df_sif_centroids <- df_sif_polygons %>%
+  st_transform(centroid_crs) %>%
+  st_centroid() %>%
+  st_transform(4326)
+
+df_zone_lookup <- df_sif_centroids %>%
+  dplyr::select(sif_row_id) %>%
+  st_join(agro_climatic_zones %>% dplyr::select(hzs), join = st_within, left = TRUE) %>%
+  st_drop_geometry() %>%
+  dplyr::select(sif_row_id, hzs)
+
+df <- df_sif_polygons %>%
+  st_drop_geometry() %>%
+  left_join(df_zone_lookup, by = "sif_row_id") %>%
+  arrange(sif_row_id) %>%
+  dplyr::select(-sif_row_id)
+
+table(df$hzs, useNA = "ifany")
+final_df <- df %>% select(c(Daily_SIF_740nm, Delta_Time, Latitude, Longitude, Lat_corner1, Lat_corner2, Lat_corner3, Lat_corner4,
+                            Lon_corner1, Lon_corner2, Lon_corner3, Lon_corner4, Delta_Date, state, hzs, active_growth_pct))
+colSums(is.na(final_df))
+final_df <- final_df %>% drop_na()
+final_df %>%
+  write_csv("data/148k_cnn_sif.csv")
+
+#-------------------------------------------------------------------------------
+# take negative sif values and see their neighbourhood (how is the distribution)
+
+final_df <- read_csv('data/148k_cnn_sif.csv')
+
+final_sif_polygons <- final_df %>%
+  mutate(sif_row_id = row_number(), sif_date = as.Date(Delta_Date), across(all_of(c("Latitude", "Longitude", corner_cols, target_col)), as.numeric)) %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+final_sif_centroids_3035 <- final_sif_polygons %>%
+  st_transform(centroid_crs) %>%
+  st_centroid()
+
+negative_samples <- final_sif_polygons %>%
+  st_drop_geometry() %>%
+  mutate(
+    negative_bin = case_when(
+      Daily_SIF_740nm >= -0.5 & Daily_SIF_740nm < -0.25 ~ "[-0.5,-0.25)",
+      Daily_SIF_740nm >= -0.25 & Daily_SIF_740nm < 0 ~ "[-0.25,0)",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(negative_bin)) %>%
+  group_by(negative_bin) %>%
+  group_modify(~ slice_sample(.x, n = min(100, nrow(.x)))) %>%
+  ungroup() %>%
+  mutate(sample_id = row_number(), sample_label = paste0("sample ", sample_id, " | ", negative_bin, " | SIF=", round(Daily_SIF_740nm, 3), " | ", sif_date))
+
+nearest_neighbor_rows <- map_dfr(seq_len(nrow(negative_samples)), function(i) {
+  sample_row <- negative_samples[i, ]
+  sample_centroid <- final_sif_centroids_3035 %>% filter(sif_row_id == sample_row$sif_row_id)
+  same_date_centroids <- final_sif_centroids_3035 %>% filter(sif_date == sample_row$sif_date, sif_row_id != sample_row$sif_row_id)
+  if (nrow(same_date_centroids) == 0) return(tibble())
+  same_date_centroids %>%
+    st_drop_geometry() %>%
+    mutate(sample_id = sample_row$sample_id, sample_sif_row_id = sample_row$sif_row_id, negative_bin = sample_row$negative_bin, neighbor_distance_m = as.numeric(st_distance(sample_centroid, same_date_centroids))) %>%
+    arrange(neighbor_distance_m) %>%
+    slice_head(n = 20) %>%
+    transmute(sample_id, sample_sif_row_id, negative_bin, neighbor_sif_row_id = sif_row_id, neighbor_distance_m)
+})
+
+negative_sample_polygons <- final_sif_polygons %>%
+  inner_join(negative_samples %>% dplyr::select(sif_row_id, sample_id, negative_bin, sample_label), by = "sif_row_id") %>%
+  mutate(leaflet_group = paste0("Negative samples ", negative_bin), map_label = sample_label)
+
+neighbor_polygons <- final_sif_polygons %>%
+  inner_join(nearest_neighbor_rows, by = c("sif_row_id" = "neighbor_sif_row_id")) %>%
+  mutate(leaflet_group = paste0("Neighbors ", negative_bin), map_label = paste0("neighbor of sample ", sample_id, " | SIF=", round(Daily_SIF_740nm, 3), " | dist=", round(neighbor_distance_m, 1), " m | ", sif_date))
+
+negative_neighborhood_pal <- leaflet::colorNumeric(palette = "viridis", domain = c(negative_sample_polygons$Daily_SIF_740nm, neighbor_polygons$Daily_SIF_740nm), na.color = "transparent")
+
+negative_neighborhood_groups <- c("Negative samples [-0.5,-0.25)", "Neighbors [-0.5,-0.25)", "Negative samples [-0.25,0)", "Neighbors [-0.25,0)")
+
+negative_neighborhood_map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
+  leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Esri World Imagery") %>%
+  leaflet::addPolygons(data = negative_sample_polygons %>% filter(negative_bin == "[-0.5,-0.25)"), color = "black", fillColor = ~negative_neighborhood_pal(Daily_SIF_740nm), weight = 2.4, opacity = 1, fillOpacity = 0.85, label = ~map_label, group = "Negative samples [-0.5,-0.25)") %>%
+  leaflet::addPolygons(data = neighbor_polygons %>% filter(negative_bin == "[-0.5,-0.25)"), color = "#555555", fillColor = ~negative_neighborhood_pal(Daily_SIF_740nm), weight = 0.7, opacity = 0.8, fillOpacity = 0.85, label = ~map_label, group = "Neighbors [-0.5,-0.25)") %>%
+  leaflet::addPolygons(data = negative_sample_polygons %>% filter(negative_bin == "[-0.25,0)"), color = "black", fillColor = ~negative_neighborhood_pal(Daily_SIF_740nm), weight = 2.4, opacity = 1, fillOpacity = 0.85, label = ~map_label, group = "Negative samples [-0.25,0)") %>%
+  leaflet::addPolygons(data = neighbor_polygons %>% filter(negative_bin == "[-0.25,0)"), color = "#555555", fillColor = ~negative_neighborhood_pal(Daily_SIF_740nm), weight = 0.7, opacity = 0.8, fillOpacity = 0.85, label = ~map_label, group = "Neighbors [-0.25,0)") %>%
+  leaflet::addLegend(position = "bottomright", pal = negative_neighborhood_pal, values = c(negative_sample_polygons$Daily_SIF_740nm, neighbor_polygons$Daily_SIF_740nm), title = "Daily SIF 740 nm", opacity = 0.85) %>%
+  leaflet::addLayersControl(baseGroups = "Esri World Imagery", overlayGroups = negative_neighborhood_groups, options = leaflet::layersControlOptions(collapsed = FALSE))
+
+negative_neighborhood_bbox <- sf::st_bbox(bind_rows(negative_sample_polygons %>% dplyr::select(geometry), neighbor_polygons %>% dplyr::select(geometry)))
+negative_neighborhood_map <- leaflet::fitBounds(negative_neighborhood_map, lng1 = negative_neighborhood_bbox[["xmin"]], lat1 = negative_neighborhood_bbox[["ymin"]], lng2 = negative_neighborhood_bbox[["xmax"]], lat2 = negative_neighborhood_bbox[["ymax"]])
+
+negative_neighborhood_map
+
+

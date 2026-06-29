@@ -16,7 +16,7 @@ train_fraction <- 0.8
 
 #model_df <- model_df %>% select(-c(mean_ndvi, mean_ndre, mean_ndre8a, mean_psri, mean_osavi, mean_ndwi, mean_nirv, mean_tcari))
 
-model_df <- read.csv('data/extracted_modis_data/df_3state_fp_par_big.csv')
+model_df <- read.csv('data/extracted_modis_data/df_3state_wpar_338k.csv')
 colnames(model_df)
 model_df1 <- read.csv('data/extracted_modis_data/df_3state_evi_big.csv')
 
