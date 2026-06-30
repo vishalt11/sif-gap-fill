@@ -3,6 +3,10 @@ library(lubridate)
 library(tidyverse)
 
 
+nc_data <- nc_open('data/oco2_helper/oco2_2018_01_01_2024_03_31/oco2_LtSIF_171231_B11012Ar_221129012634s.nc4')
+
+attributes(nc_data$var)
+lon_corners <- ncvar_get(nc_data,"Science/IGBP_index")
 #-------------------------------------------------------------------------------
 # Input/output paths
 input_dir <- '../data/oco2_dump/'
@@ -34,11 +38,15 @@ lon_max <- 15.017
 month_min <- 2
 month_max <- 7
 
-vars_to_extract <- c("Daily_SIF_740nm", "Delta_Time", "Latitude", "Longitude",
+vars_to_extract <- c("Daily_SIF_757nm", "Daily_SIF_771nm", "Daily_SIF_740nm", 
+                     "SIF_Uncertainty_740", "Science/SIF_Uncertainty_757nm", "Science/SIF_Uncertainty_771nm",
+                     "SZA", "VZA", "VAz", "SAz", 
+                     "Delta_Time", "Latitude", "Longitude",
                      "Latitude_Corners", "Longitude_Corners", "Quality_Flag",
                      "Meteo/specific_humidity", "Meteo/surface_pressure",
                      "Meteo/temperature_skin", "Meteo/temperature_two_meter",
-                     "Meteo/vapor_pressure_deficit", "Metadata/MeasurementMode")
+                     "Meteo/vapor_pressure_deficit", "Metadata/MeasurementMode", 
+                     "Science/daily_correction_factor", "Science/sounding_land_fraction")
 
 
 #-------------------------------------------------------------------------------
