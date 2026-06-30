@@ -6,7 +6,9 @@ library(furrr)
 library(future)
 
 
-df <- readRDS('data/sif_sf_months2_7_cleaned.rds')
+#df <- readRDS('data/sif_sf_months2_7_cleaned.rds')
+
+df <- read_csv('data/338k_base_crop_hzs.csv')
 
 # spectral_indices_dir <- "data/spectral_indices_means_nonveg_masked"
 fapar_dir <- "data/glass_fapar_modis_250m"
@@ -16,6 +18,29 @@ glass_days <- seq(33, 209, by = 8)
 glass_years <- 2019:2024
 fapar_tiles <- c("h18v03", "h18v04")
 parallel_workers <- 2
+
+match_glass_composite_doy <- function(doy) {
+  if (is.na(doy)) {
+    return(NA_integer_)
+  }
+
+  matched_doys <- glass_days[doy >= glass_days & doy <= glass_days + 7]
+
+  if (length(matched_doys) == 0) {
+    return(NA_integer_)
+  }
+
+  matched_doys[[1]]
+}
+
+match_closest_downloaded_doy <- function(doy) {
+  if (is.na(doy)) {
+    return(NA_integer_)
+  }
+
+  glass_days[which.min(abs(glass_days - doy))]
+}
+
 # 
 # 
 # csv_files <- list.files(
@@ -50,7 +75,7 @@ corner_cols <- c(
   "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
 )
 
-target_states <- c("SACHSEN-ANHALT", "BAYERN", "NIEDERSACHSEN")
+#target_states <- c("SACHSEN-ANHALT", "BAYERN", "NIEDERSACHSEN")
 
 df <- df %>%
   st_drop_geometry() %>%
@@ -100,12 +125,12 @@ sif_sf <- df %>%
     sif_row_id = row_number(),
     sif_year = year(Delta_Date),
     sif_doy = yday(Delta_Date),
-    closest_doy = map_int(
-      sif_doy,
-      ~ if (is.na(.x)) NA_integer_ else glass_days[which.min(abs(glass_days - .x))]
-    ),
-    closest_glass_date = as.Date(sprintf("%d-01-01", sif_year)) + closest_doy - 1,
-    glass_day_diff = abs(as.integer(Delta_Date - closest_glass_date))
+    fapar_doy = map_int(sif_doy, match_glass_composite_doy),
+    par_doy = map_int(sif_doy, match_closest_downloaded_doy),
+    fapar_start_date = as.Date(sprintf("%d-01-01", sif_year)) + fapar_doy - 1,
+    par_date = as.Date(sprintf("%d-01-01", sif_year)) + par_doy - 1,
+    fapar_day_offset = as.integer(Delta_Date - fapar_start_date),
+    par_day_diff = abs(as.integer(Delta_Date - par_date))
   )
 # 
 # missing_corner_cols <- setdiff(corner_cols, names(df))
@@ -294,7 +319,7 @@ par_template <- rast(par_file_path(2019, 33))
 message("Preparing polygon lookup once.")
 sif_lookup <- sif_sf %>%
   st_drop_geometry() %>%
-  select(sif_row_id, sif_year, closest_doy)
+  select(sif_row_id, sif_year, fapar_doy, par_doy)
 
 message("Transforming polygons to FAPAR CRS once.")
 sif_sf_fapar_crs <- sif_sf %>%
@@ -308,27 +333,35 @@ sif_sf_par_crs <- sif_sf %>%
 
 extract_groups <- sif_sf %>%
   st_drop_geometry() %>%
-  filter(!is.na(sif_year), !is.na(closest_doy)) %>%
-  distinct(sif_year, closest_doy) %>%
-  arrange(sif_year, closest_doy)
+  filter(!is.na(sif_year), !is.na(fapar_doy), !is.na(par_doy)) %>%
+  distinct(sif_year, fapar_doy, par_doy) %>%
+  arrange(sif_year, fapar_doy, par_doy)
 
 plan(multisession, workers = parallel_workers)
 
 extraction_results <- future_pmap_dfr(
-  list(extract_groups$sif_year, extract_groups$closest_doy),
-  function(target_year, target_doy) {
-    message("Extracting GLASS values for ", target_year, " DOY ", sprintf("%03d", target_doy))
+  list(extract_groups$sif_year, extract_groups$fapar_doy, extract_groups$par_doy),
+  function(target_year, target_fapar_doy, target_par_doy) {
+    message(
+      "Extracting GLASS values for ",
+      target_year,
+      " FAPAR DOY ",
+      sprintf("%03d", target_fapar_doy),
+      " PAR DOY ",
+      sprintf("%03d", target_par_doy)
+    )
 
     group_rows <- which(
       sif_lookup$sif_year == target_year &
-        sif_lookup$closest_doy == target_doy
+        sif_lookup$fapar_doy == target_fapar_doy &
+        sif_lookup$par_doy == target_par_doy
     )
 
     sif_group_fapar <- sif_sf_fapar_crs[group_rows, ]
     sif_group_par <- sif_sf_par_crs[group_rows, ]
 
-    fapar_mosaic <- read_fapar_mosaic(target_year, target_doy, sif_group_fapar, buffer_cells = 2)
-    par_raster <- read_par_raster(target_year, target_doy, sif_group_par, buffer_cells = 2)
+    fapar_mosaic <- read_fapar_mosaic(target_year, target_fapar_doy, sif_group_fapar, buffer_cells = 2)
+    par_raster <- read_par_raster(target_year, target_par_doy, sif_group_par, buffer_cells = 2)
 
     tibble(
       sif_row_id = sif_lookup$sif_row_id[group_rows],
@@ -355,11 +388,11 @@ summary(sif_sf$mean_fapar)
 summary(sif_sf$mean_par)
 summary(sif_sf$apar)
 
-saveRDS(sif_sf, "data/extracted_modis_data/df_3state_fp_par_big.rds")
+saveRDS(sif_sf, "data/extracted_modis_data/338k_crop_hzs_wpar.rds")
 
 sif_sf %>%
   st_drop_geometry() %>%
-  write_csv("data/extracted_modis_data/df_3state_fp_par_big.csv")
+  write_csv("data/extracted_modis_data/338k_crop_hzs_wpar.csv")
 
 #-------------------------------------------------------------------------------
 # testing fapar and par values
@@ -368,17 +401,18 @@ set.seed(42)
 test_sif_row_ids <- sif_sf %>%
   st_drop_geometry() %>%
   filter(!is.na(mean_fapar), !is.na(mean_par)) %>%
-  slice_sample(n = 5) %>%
+  slice_sample(n = 3) %>%
   pull(sif_row_id)
 
 test_rows <- which(sif_sf$sif_row_id %in% test_sif_row_ids)
 
 test_results <- map_dfr(test_rows, function(row_index) {
   target_year <- sif_sf$sif_year[row_index]
-  target_doy <- sif_sf$closest_doy[row_index]
+  target_fapar_doy <- sif_sf$fapar_doy[row_index]
+  target_par_doy <- sif_sf$par_doy[row_index]
 
-  fapar_mosaic <- read_fapar_mosaic(target_year, target_doy)
-  par_raster <- read_par_raster(target_year, target_doy)
+  fapar_mosaic <- read_fapar_mosaic(target_year, target_fapar_doy)
+  par_raster <- read_par_raster(target_year, target_par_doy)
   parallel_mean_fapar <- sif_sf$mean_fapar[row_index]
   parallel_mean_par <- sif_sf$mean_par[row_index]
   parallel_apar <- sif_sf$apar[row_index]
@@ -389,7 +423,8 @@ test_results <- map_dfr(test_rows, function(row_index) {
   tibble(
     sif_row_id = sif_sf$sif_row_id[row_index],
     sif_year = target_year,
-    closest_doy = target_doy,
+    fapar_doy = target_fapar_doy,
+    par_doy = target_par_doy,
     parallel_mean_fapar = parallel_mean_fapar,
     serial_mean_fapar = serial_mean_fapar,
     fapar_diff = serial_mean_fapar - parallel_mean_fapar,

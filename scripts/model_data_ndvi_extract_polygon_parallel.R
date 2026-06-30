@@ -6,7 +6,9 @@ library(furrr)
 library(future)
 
 
-df <- readRDS("data/sif_sf_months2_7_cleaned.rds")
+#df <- readRDS("data/sif_sf_months2_7_cleaned.rds")
+
+df <- read_csv('data/338k_base_crop_hzs.csv')
 
 ndvi_dir <- "data/glass_ndvi_modis_250m"
 output_dir <- "data/extracted_modis_data"
@@ -17,6 +19,20 @@ ndvi_tiles <- c("h18v03", "h18v04")
 parallel_workers <- 2
 buffer_cells <- 2
 
+match_glass_composite_doy <- function(doy) {
+  if (is.na(doy)) {
+    return(NA_integer_)
+  }
+
+  matched_doys <- glass_days[doy >= glass_days & doy <= glass_days + 7]
+
+  if (length(matched_doys) == 0) {
+    return(NA_integer_)
+  }
+
+  matched_doys[[1]]
+}
+
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 corner_cols <- c(
@@ -24,7 +40,7 @@ corner_cols <- c(
   "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
 )
 
-target_states <- c("SACHSEN-ANHALT", "BAYERN", "NIEDERSACHSEN")
+#target_states <- c("SACHSEN-ANHALT", "BAYERN", "NIEDERSACHSEN")
 
 df <- df %>%
   st_drop_geometry() %>%
@@ -75,12 +91,9 @@ sif_sf <- df %>%
     sif_row_id = row_number(),
     sif_year = year(Delta_Date),
     sif_doy = yday(Delta_Date),
-    closest_doy = map_int(
-      sif_doy,
-      ~ if (is.na(.x)) NA_integer_ else glass_days[which.min(abs(glass_days - .x))]
-    ),
-    closest_glass_date = as.Date(sprintf("%d-01-01", sif_year)) + closest_doy - 1,
-    glass_day_diff = abs(as.integer(Delta_Date - closest_glass_date))
+    ndvi_doy = map_int(sif_doy, match_glass_composite_doy),
+    ndvi_start_date = as.Date(sprintf("%d-01-01", sif_year)) + ndvi_doy - 1,
+    ndvi_day_offset = as.integer(Delta_Date - ndvi_start_date)
   )
 
 
@@ -200,7 +213,7 @@ ndvi_template <- rast(ndvi_file_path(2019, 33, "h18v03"))
 message("Preparing polygon lookup once.")
 sif_lookup <- sif_sf %>%
   st_drop_geometry() %>%
-  select(sif_row_id, sif_year, closest_doy)
+  select(sif_row_id, sif_year, ndvi_doy)
 
 message("Transforming polygons to NDVI CRS once.")
 sif_sf_ndvi_crs <- sif_sf %>%
@@ -209,20 +222,20 @@ sif_sf_ndvi_crs <- sif_sf %>%
 
 extract_groups <- sif_sf %>%
   st_drop_geometry() %>%
-  filter(!is.na(sif_year), !is.na(closest_doy)) %>%
-  distinct(sif_year, closest_doy) %>%
-  arrange(sif_year, closest_doy)
+  filter(!is.na(sif_year), !is.na(ndvi_doy)) %>%
+  distinct(sif_year, ndvi_doy) %>%
+  arrange(sif_year, ndvi_doy)
 
 plan(multisession, workers = parallel_workers)
 
 extraction_results <- future_pmap_dfr(
-  list(extract_groups$sif_year, extract_groups$closest_doy),
+  list(extract_groups$sif_year, extract_groups$ndvi_doy),
   function(target_year, target_doy) {
     message("Extracting NDVI values for ", target_year, " DOY ", sprintf("%03d", target_doy))
 
     group_rows <- which(
       sif_lookup$sif_year == target_year &
-        sif_lookup$closest_doy == target_doy
+        sif_lookup$ndvi_doy == target_doy
     )
 
     sif_group_ndvi <- sif_sf_ndvi_crs[group_rows, ]
@@ -248,11 +261,11 @@ message("Rows with NDVI: ", sum(!is.na(sif_sf$mean_ndvi)))
 
 summary(sif_sf$mean_ndvi)
 
-saveRDS(sif_sf, file.path(output_dir, "df_ndvi_338k.rds"))
+saveRDS(sif_sf, file.path(output_dir, "338k_crop_hzs_ndvi.rds"))
 
 sif_sf %>%
   st_drop_geometry() %>%
-  write_csv(file.path(output_dir, "df_ndvi_338k.csv"))
+  write_csv(file.path(output_dir, "338k_crop_hzs_ndvi.csv"))
 
 #-------------------------------------------------------------------------------
 # testing NDVI values
@@ -268,7 +281,7 @@ test_rows <- which(sif_sf$sif_row_id %in% test_sif_row_ids)
 
 test_results <- map_dfr(test_rows, function(row_index) {
   target_year <- sif_sf$sif_year[row_index]
-  target_doy <- sif_sf$closest_doy[row_index]
+  target_doy <- sif_sf$ndvi_doy[row_index]
 
   ndvi_mosaic <- read_ndvi_mosaic(target_year, target_doy)
   parallel_mean_ndvi <- sif_sf$mean_ndvi[row_index]
@@ -277,7 +290,7 @@ test_results <- map_dfr(test_rows, function(row_index) {
   tibble(
     sif_row_id = sif_sf$sif_row_id[row_index],
     sif_year = target_year,
-    closest_doy = target_doy,
+    ndvi_doy = target_doy,
     parallel_mean_ndvi = parallel_mean_ndvi,
     serial_mean_ndvi = serial_mean_ndvi,
     ndvi_diff = serial_mean_ndvi - parallel_mean_ndvi
