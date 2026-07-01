@@ -6,14 +6,12 @@ library(furrr)
 library(future)
 
 
-#df <- readRDS("data/sif_sf_months2_7_cleaned.rds")
-
-df <- read_csv('data/338k_base_crop_hzs.csv')
+df <- read_csv('data/sif_sf_1_12_crop_zonal_19_24.csv')
 
 ndvi_dir <- "data/glass_ndvi_modis_250m"
 output_dir <- "data/extracted_modis_data"
 
-glass_days <- seq(33, 209, by = 8)
+glass_days <- seq(1, 361, by = 8)
 glass_years <- 2019:2024
 ndvi_tiles <- c("h18v03", "h18v04")
 parallel_workers <- 2
@@ -261,11 +259,11 @@ message("Rows with NDVI: ", sum(!is.na(sif_sf$mean_ndvi)))
 
 summary(sif_sf$mean_ndvi)
 
-saveRDS(sif_sf, file.path(output_dir, "338k_crop_hzs_ndvi.rds"))
+saveRDS(sif_sf, file.path(output_dir, "ndvi_1_12.rds"))
 
-sif_sf %>%
-  st_drop_geometry() %>%
-  write_csv(file.path(output_dir, "338k_crop_hzs_ndvi.csv"))
+# sif_sf %>%
+#   st_drop_geometry() %>%
+#   write_csv(file.path(output_dir, "ndvi_1_12.csv"))
 
 #-------------------------------------------------------------------------------
 # testing NDVI values

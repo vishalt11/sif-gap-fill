@@ -1,22 +1,28 @@
 from __future__ import annotations
 
 import csv
-import re
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 
 BASE_URL = "https://glass.hku.hk/archive/FAPAR/MODIS/250M/"
 PRODUCT_PREFIX = "GLASS09D01.V60"
+PRODUCTION_SUFFIX_BY_YEAR = {
+    2019: "2022092",
+    2020: "2022157",
+    2021: "2022157",
+    2022: "2024107",
+    2023: "2024107",
+    2024: "2026046",
+}
 
 YEARS = range(2019, 2025)
-START_DOY = 33
-END_DOY = 209
+START_DOY = 1
+END_DOY = 361
 DOY_STEP = 8
 
 # Germany is covered by h18v03 and h18v04.
@@ -46,6 +52,15 @@ class Target:
     @property
     def day_dir_url(self) -> str:
         return f"{BASE_URL}{self.year}/{self.doy:03d}/"
+
+    @property
+    def filename(self) -> str:
+        production_suffix = PRODUCTION_SUFFIX_BY_YEAR[self.year]
+        return f"{PRODUCT_PREFIX}.A{self.year}{self.doy:03d}.{self.tile}.{production_suffix}.hdf"
+
+    @property
+    def file_url(self) -> str:
+        return f"{self.day_dir_url}{self.filename}"
 
 
 def utc_now() -> str:
@@ -82,30 +97,8 @@ def request_bytes(url: str) -> bytes:
     raise last_error
 
 
-def read_directory_listing(url: str) -> str:
-    return request_bytes(url).decode("utf-8", errors="replace")
-
-
-def find_remote_hdf(target: Target) -> str | None:
-    html = read_directory_listing(target.day_dir_url)
-
-    escaped_prefix = re.escape(PRODUCT_PREFIX)
-    escaped_tile = re.escape(target.tile)
-    pattern = re.compile(
-        rf"({escaped_prefix}\.A{target.year}{target.doy:03d}\.{escaped_tile}\.\d{{7}}\.hdf)",
-        flags=re.IGNORECASE,
-    )
-
-    files = sorted(set(pattern.findall(html)))
-    if not files:
-        return None
-
-    return urljoin(target.day_dir_url, files[0])
-
-
-def local_path_for(target: Target, remote_url: str) -> Path:
-    filename = remote_url.rstrip("/").split("/")[-1]
-    return OUTPUT_DIR / target.tile / str(target.year) / filename
+def local_path_for(target: Target) -> Path:
+    return OUTPUT_DIR / target.tile / str(target.year) / target.filename
 
 
 def file_is_complete(path: Path) -> bool:
@@ -164,7 +157,6 @@ def save_checklist(rows: dict[tuple[str, int, int], dict[str, str]]) -> None:
 def checklist_row(
     target: Target,
     status: str,
-    remote_url: str | None = None,
     output_path: Path | None = None,
     file_size_bytes: int | None = None,
     error: str | None = None,
@@ -175,7 +167,7 @@ def checklist_row(
         "doy": f"{target.doy:03d}",
         "date": target.date.isoformat(),
         "status": status,
-        "remote_url": remote_url or "",
+        "remote_url": target.file_url,
         "output_path": str(output_path) if output_path else "",
         "file_size_bytes": str(file_size_bytes) if file_size_bytes is not None else "",
         "error": error or "",
@@ -201,7 +193,8 @@ def main() -> None:
 
     print(
         f"Downloading GLASS FAPAR targets: {len(targets)} day/tile combinations, "
-        f"years {min(YEARS)}-{max(YEARS)}, tiles {', '.join(TILES)}"
+        f"years {min(YEARS)}-{max(YEARS)}, DOY {START_DOY:03d}-{END_DOY:03d} step {DOY_STEP}, "
+        f"tiles {', '.join(TILES)}"
     )
     print(f"Output directory: {OUTPUT_DIR}")
 
@@ -211,49 +204,16 @@ def main() -> None:
             f"DOY {target.doy:03d} {target.tile}"
         )
 
-        try:
-            remote_url = find_remote_hdf(target)
-        except HTTPError as error:
-            if error.code == 404:
-                key = (target.tile, target.year, target.doy)
-                checklist[key] = checklist_row(
-                    target,
-                    status="missing_day_directory",
-                    error=f"HTTP {error.code}",
-                )
-                save_checklist(checklist)
-                continue
-            raise
-        except Exception as error:
-            key = (target.tile, target.year, target.doy)
-            checklist[key] = checklist_row(
-                target,
-                status="directory_error",
-                error=repr(error),
-            )
-            save_checklist(checklist)
-            continue
-
         key = (target.tile, target.year, target.doy)
         existing_row = checklist.get(key)
         if should_skip(existing_row):
             continue
 
-        if remote_url is None:
-            checklist[key] = checklist_row(
-                target,
-                status="missing_file",
-                error="No .hdf match in directory listing",
-            )
-            save_checklist(checklist)
-            continue
-
-        output_path = local_path_for(target, remote_url)
+        output_path = local_path_for(target)
         if file_is_complete(output_path) and not OVERWRITE:
             checklist[key] = checklist_row(
                 target,
                 status="completed",
-                remote_url=remote_url,
                 output_path=output_path,
                 file_size_bytes=output_path.stat().st_size,
             )
@@ -261,11 +221,10 @@ def main() -> None:
             continue
 
         try:
-            file_size = download_file(remote_url, output_path)
+            file_size = download_file(target.file_url, output_path)
             checklist[key] = checklist_row(
                 target,
                 status="completed",
-                remote_url=remote_url,
                 output_path=output_path,
                 file_size_bytes=file_size,
             )
@@ -273,7 +232,6 @@ def main() -> None:
             checklist[key] = checklist_row(
                 target,
                 status="download_error",
-                remote_url=remote_url,
                 output_path=output_path,
                 error=repr(error),
             )

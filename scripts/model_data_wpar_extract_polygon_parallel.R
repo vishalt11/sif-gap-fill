@@ -6,20 +6,17 @@ library(furrr)
 library(future)
 
 
-#df <- readRDS('data/sif_sf_months2_7_cleaned.rds')
+df <- read_csv('data/sif_sf_1_12_crop_zonal_19_24.csv')
 
-df <- read_csv('data/338k_base_crop_hzs.csv')
-
-# spectral_indices_dir <- "data/spectral_indices_means_nonveg_masked"
 fapar_dir <- "data/glass_fapar_modis_250m"
 par_dir <- "data/glass_par_modis_005d"
 
-glass_days <- seq(33, 209, by = 8)
+glass_days <- seq(1, 361, by = 8)
 glass_years <- 2019:2024
 fapar_tiles <- c("h18v03", "h18v04")
 parallel_workers <- 2
 
-match_glass_composite_doy <- function(doy) {
+match_interval_start_doy <- function(doy) {
   if (is.na(doy)) {
     return(NA_integer_)
   }
@@ -125,7 +122,7 @@ sif_sf <- df %>%
     sif_row_id = row_number(),
     sif_year = year(Delta_Date),
     sif_doy = yday(Delta_Date),
-    fapar_doy = map_int(sif_doy, match_glass_composite_doy),
+    fapar_doy = map_int(sif_doy, match_interval_start_doy),
     par_doy = map_int(sif_doy, match_closest_downloaded_doy),
     fapar_start_date = as.Date(sprintf("%d-01-01", sif_year)) + fapar_doy - 1,
     par_date = as.Date(sprintf("%d-01-01", sif_year)) + par_doy - 1,
@@ -388,11 +385,11 @@ summary(sif_sf$mean_fapar)
 summary(sif_sf$mean_par)
 summary(sif_sf$apar)
 
-saveRDS(sif_sf, "data/extracted_modis_data/338k_crop_hzs_wpar.rds")
+saveRDS(sif_sf, "data/extracted_modis_data/wpar_1_12.rds")
 
-sif_sf %>%
-  st_drop_geometry() %>%
-  write_csv("data/extracted_modis_data/338k_crop_hzs_wpar.csv")
+# sif_sf %>%
+#   st_drop_geometry() %>%
+#   write_csv("data/extracted_modis_data/wpar_1_12.csv")
 
 #-------------------------------------------------------------------------------
 # testing fapar and par values
@@ -401,7 +398,7 @@ set.seed(42)
 test_sif_row_ids <- sif_sf %>%
   st_drop_geometry() %>%
   filter(!is.na(mean_fapar), !is.na(mean_par)) %>%
-  slice_sample(n = 3) %>%
+  slice_sample(n = 5) %>%
   pull(sif_row_id)
 
 test_rows <- which(sif_sf$sif_row_id %in% test_sif_row_ids)

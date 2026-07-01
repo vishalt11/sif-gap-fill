@@ -3,15 +3,17 @@ library(lubridate)
 library(tidyverse)
 
 
-nc_data <- nc_open('data/oco2_helper/oco2_2018_01_01_2024_03_31/oco2_LtSIF_171231_B11012Ar_221129012634s.nc4')
+nc_data <- nc_open('data/oco2_helper/oco2_2018_2024/oco2_LtSIF_171231_B11012Ar_221129012634s.nc4')
 
 attributes(nc_data$var)
-lon_corners <- ncvar_get(nc_data,"Science/IGBP_index")
+lon_corners <- ncvar_get(nc_data,"Daily_SIF_757nm")
+
+
 #-------------------------------------------------------------------------------
 # Input/output paths
-input_dir <- '../data/oco2_dump/'
-output_file <- '../data/SIF_v2_corrected_subset.rds'
-chunk_dir <- '../data/SIF_v2_corrected_chunks'
+input_dir <- 'data/oco2_helper/oco2_2018_2024/'
+output_file <- 'data/SIF_1_12.rds'
+chunk_dir <- 'data/SIF_chunks'
 
 if (!dir.exists(chunk_dir)) {
   dir.create(chunk_dir, recursive = TRUE)
@@ -25,18 +27,13 @@ cat("Found", length(files), "NC4 files.\n")
 
 #-------------------------------------------------------------------------------
 # Germany bounding box and target timeframe
-#lat_min <- 47.27
-#lat_max <- 55.06
-#lon_min <- 5.87
-#lon_max <- 15.04
-
 lat_min <- 47.302
 lat_max <- 54.983
 lon_min <- 5.989
 lon_max <- 15.017
 
-month_min <- 2
-month_max <- 7
+month_min <- 1
+month_max <- 12
 
 vars_to_extract <- c("Daily_SIF_757nm", "Daily_SIF_771nm", "Daily_SIF_740nm", 
                      "SIF_Uncertainty_740", "Science/SIF_Uncertainty_757nm", "Science/SIF_Uncertainty_771nm",
@@ -46,7 +43,7 @@ vars_to_extract <- c("Daily_SIF_757nm", "Daily_SIF_771nm", "Daily_SIF_740nm",
                      "Meteo/specific_humidity", "Meteo/surface_pressure",
                      "Meteo/temperature_skin", "Meteo/temperature_two_meter",
                      "Meteo/vapor_pressure_deficit", "Metadata/MeasurementMode", 
-                     "Science/daily_correction_factor", "Science/sounding_land_fraction")
+                     "Science/daily_correction_factor")
 
 
 #-------------------------------------------------------------------------------
@@ -215,7 +212,7 @@ if (length(chunk_files) == 0) {
 saveRDS(combined_df, output_file)
 cat("Saved final combined data frame with", nrow(combined_df), "rows to", output_file, "\n")
 
-combined_df <- readRDS('../data/sif_month2_7.rds')
+combined_df <- readRDS('data/SIF_1_12.rds')
 
 summary(combined_df$Daily_SIF_740nm)
 summary(combined_df$Latitude)
@@ -224,7 +221,7 @@ summary(combined_df$Delta_Time)
 sort(unique(lubridate::month(combined_df$Delta_Time)))
 
 colSums(is.na(combined_df))
-
+combined_df <- combined_df %>% select(-c(SIF_Uncertainty_740))
 combined_df <- drop_na(combined_df)
 combined_df <- combined_df %>% filter(Metadata.MeasurementMode %in% c(0,1))
 combined_df <- combined_df %>% filter(Quality_Flag %in% c(0,1))
@@ -232,8 +229,6 @@ combined_df$Delta_Date <- as.Date(combined_df$Delta_Time)
 
 library(sf)
 library(giscoR)
-
-
 
 germany_states <- giscoR::gisco_get_nuts(
   country = "DE",
@@ -244,30 +239,117 @@ germany_states <- giscoR::gisco_get_nuts(
   select(state = NUTS_NAME, geometry)
 
 
-# Convert soundings to points
-combined_points <- combined_df %>%
-  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, remove = FALSE)
+# Convert soundings to points using SIF footprint polygon centroids
+sif_polygons <- lapply(seq_len(nrow(combined_df)), function(i) {
+  coords <- matrix(
+    c(
+      combined_df$Lon_corner1[i], combined_df$Lat_corner1[i],
+      combined_df$Lon_corner2[i], combined_df$Lat_corner2[i],
+      combined_df$Lon_corner3[i], combined_df$Lat_corner3[i],
+      combined_df$Lon_corner4[i], combined_df$Lat_corner4[i],
+      combined_df$Lon_corner1[i], combined_df$Lat_corner1[i]
+    ),
+    ncol = 2,
+    byrow = TRUE
+  )
+
+  st_polygon(list(coords))
+})
+
+combined_points <- st_sf(
+  combined_df,
+  geometry = st_centroid(st_transform(st_sfc(sif_polygons, crs = 4326), 3035)) %>%
+    st_transform(4326)
+)
 
 # Keep only points inside Germany and add state name
 combined_df_germany <- combined_points %>%
   st_join(germany_states, join = st_within, left = FALSE)
 
 table(combined_df_germany$state)
+table(month(combined_df_germany$Delta_Date))
 
-#saveRDS(combined_df_germany, file = '../data/sif_sf_months2_7_cleaned.rds')
-unique(combined_df_germany[combined_df_germany$state == 'BAYERN',]$Delta_Date)
+saveRDS(combined_df_germany, file = 'data/sif_sf_1_12_cleaned.rds')
+ 
 
+combined_df_germany_27 <- combined_df_germany[month(combined_df_germany$Delta_Date) %in% 2:7,]
+
+saveRDS(combined_df_germany_27, file = 'data/sif_sf_2_7_cleaned.rds')
 #-------------------------------------------------------------------------------
 
-#rast('../data/bavaria_ww_gt40.tif')
-#rast('../data/bavaria_ww_gt40.tif')
-#rast('../data/bavaria_ww_gt40.tif')
-
-high_wheat <- rast('../data/sachsen-Anhalt_ww_gt40.tif')
-high_wheat_ll <- project(high_wheat, "EPSG:4326", method = "near")
-high_wheat_df <- as.data.frame(high_wheat_ll, xy = TRUE, na.rm = TRUE) %>% filter(crop == 1)
 
 
+# #-----------------------------------------------------------------------------
+# 
+# #rast('../data/bavaria_ww_gt40.tif')
+# #rast('../data/bavaria_ww_gt40.tif')
+# #rast('../data/bavaria_ww_gt40.tif')
+# 
+# high_wheat <- rast('../data/sachsen-Anhalt_ww_gt40.tif')
+# high_wheat_ll <- project(high_wheat, "EPSG:4326", method = "near")
+# high_wheat_df <- as.data.frame(high_wheat_ll, xy = TRUE, na.rm = TRUE) %>% filter(crop == 1)
+# 
+# 
+# # ggplot() +
+# #   geom_sf(data = germany_states, fill = "grey95", color = "grey40", linewidth = 0.25) +
+# #   geom_tile(
+# #     data = high_wheat_df,
+# #     aes(x = x, y = y),
+# #     fill = "red",
+# #     #alpha = 0.45
+# #   ) +
+# #   geom_sf(
+# #     data = combined_df_germany %>% filter(state == 'BAYERN'),
+# #     size = 0.05,
+# #     #alpha = 0.2,
+# #     color = "darkgreen"
+# #   ) +
+# #   coord_sf(xlim = c(9, 14), ylim = c(47.45, 50.85),expand = FALSE) +
+# #   theme_minimal()
+# 
+# # Bavaria boundary in UTM 32N
+# #NIEDERSACHSEN
+# #BAYERN
+# bavaria_utm <- germany_states %>%
+#   filter(state == "SACHSEN-ANHALT") %>%
+#   st_transform(32632)
+# 
+# bb <- st_bbox(bavaria_utm)
+# 
+# # 100 km UTM grid spacing
+# grid_step <- 100000
+# 
+# e_seq <- seq(
+#   floor(bb["xmin"] / grid_step) * grid_step,
+#   ceiling(bb["xmax"] / grid_step) * grid_step,
+#   by = grid_step
+# )
+# 
+# n_seq <- seq(
+#   floor(bb["ymin"] / grid_step) * grid_step,
+#   ceiling(bb["ymax"] / grid_step) * grid_step,
+#   by = grid_step
+# )
+# 
+# utm_vertical <- st_sfc(
+#   lapply(e_seq, function(e) {
+#     st_linestring(matrix(c(e, bb["ymin"], e, bb["ymax"]), ncol = 2, byrow = TRUE))
+#   }),
+#   crs = 32632
+# )
+# 
+# utm_horizontal <- st_sfc(
+#   lapply(n_seq, function(n) {
+#     st_linestring(matrix(c(bb["xmin"], n, bb["xmax"], n), ncol = 2, byrow = TRUE))
+#   }),
+#   crs = 32632
+# )
+# 
+# utm_grid <- st_sf(
+#   type = c(rep("easting", length(utm_vertical)), rep("northing", length(utm_horizontal))),
+#   geometry = c(utm_vertical, utm_horizontal)
+# )
+# 
 # ggplot() +
 #   geom_sf(data = germany_states, fill = "grey95", color = "grey40", linewidth = 0.25) +
 #   geom_tile(
@@ -277,80 +359,20 @@ high_wheat_df <- as.data.frame(high_wheat_ll, xy = TRUE, na.rm = TRUE) %>% filte
 #     #alpha = 0.45
 #   ) +
 #   geom_sf(
-#     data = combined_df_germany %>% filter(state == 'BAYERN'),
+#     data = utm_grid,
+#     color = "blue",
+#     linewidth = 0.35,
+#     #alpha = 0.8
+#   ) +
+#   geom_sf(
+#     data = combined_df_germany %>% filter(state == "SACHSEN-ANHALT"),
 #     size = 0.05,
-#     #alpha = 0.2,
 #     color = "darkgreen"
 #   ) +
-#   coord_sf(xlim = c(9, 14), ylim = c(47.45, 50.85),expand = FALSE) +
+#   coord_sf(
+#     #xlim = c(9, 14), ylim = c(47.45, 50.85),
+#     #xlim = c(6.5, 11.8), ylim = c(51.2, 54),
+#     xlim = c(10, 13.6), ylim = c(51, 53.5),
+#     expand = FALSE
+#   ) +
 #   theme_minimal()
-
-# Bavaria boundary in UTM 32N
-#NIEDERSACHSEN
-#BAYERN
-bavaria_utm <- germany_states %>%
-  filter(state == "SACHSEN-ANHALT") %>%
-  st_transform(32632)
-
-bb <- st_bbox(bavaria_utm)
-
-# 100 km UTM grid spacing
-grid_step <- 100000
-
-e_seq <- seq(
-  floor(bb["xmin"] / grid_step) * grid_step,
-  ceiling(bb["xmax"] / grid_step) * grid_step,
-  by = grid_step
-)
-
-n_seq <- seq(
-  floor(bb["ymin"] / grid_step) * grid_step,
-  ceiling(bb["ymax"] / grid_step) * grid_step,
-  by = grid_step
-)
-
-utm_vertical <- st_sfc(
-  lapply(e_seq, function(e) {
-    st_linestring(matrix(c(e, bb["ymin"], e, bb["ymax"]), ncol = 2, byrow = TRUE))
-  }),
-  crs = 32632
-)
-
-utm_horizontal <- st_sfc(
-  lapply(n_seq, function(n) {
-    st_linestring(matrix(c(bb["xmin"], n, bb["xmax"], n), ncol = 2, byrow = TRUE))
-  }),
-  crs = 32632
-)
-
-utm_grid <- st_sf(
-  type = c(rep("easting", length(utm_vertical)), rep("northing", length(utm_horizontal))),
-  geometry = c(utm_vertical, utm_horizontal)
-)
-
-ggplot() +
-  geom_sf(data = germany_states, fill = "grey95", color = "grey40", linewidth = 0.25) +
-  geom_tile(
-    data = high_wheat_df,
-    aes(x = x, y = y),
-    fill = "red",
-    #alpha = 0.45
-  ) +
-  geom_sf(
-    data = utm_grid,
-    color = "blue",
-    linewidth = 0.35,
-    #alpha = 0.8
-  ) +
-  geom_sf(
-    data = combined_df_germany %>% filter(state == "SACHSEN-ANHALT"),
-    size = 0.05,
-    color = "darkgreen"
-  ) +
-  coord_sf(
-    #xlim = c(9, 14), ylim = c(47.45, 50.85),
-    #xlim = c(6.5, 11.8), ylim = c(51.2, 54),
-    xlim = c(10, 13.6), ylim = c(51, 53.5),
-    expand = FALSE
-  ) +
-  theme_minimal()

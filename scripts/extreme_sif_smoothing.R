@@ -2,7 +2,6 @@ library(tidyverse)
 library(sf)
 library(purrr)
 
-
 corner_cols <- c(
   "Lat_corner1", "Lat_corner2", "Lat_corner3", "Lat_corner4",
   "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
@@ -23,19 +22,20 @@ make_sif_polygon <- function(lon1, lat1, lon2, lat2, lon3, lat3, lon4, lat4) {
 }
 
 
-#final_df <- read_csv('data/148k_nneighbour.csv')
 
-evi_df <- read_csv('data/extracted_modis_data/338k_crop_hzs_evi.csv')
-ndvi_df <- read_csv('data/extracted_modis_data/338k_crop_hzs_ndvi.csv')
-wpar_df <- read_csv('data/extracted_modis_data/338k_crop_hzs_wpar.csv')
+# flag extreme sif rows depending on certain criteria
+final_df <- readRDS('data/extracted_modis_data/modis_1_12.rds')
 
-key_cols <- Reduce(intersect,list(names(evi_df), names(ndvi_df), names(wpar_df)))
+sif_breaks <- seq(
+  floor(min(final_df$Daily_SIF_757nm, na.rm = TRUE) / 0.25) * 0.25,
+  ceiling(max(final_df$Daily_SIF_757nm, na.rm = TRUE) / 0.25) * 0.25,
+  by = 0.25
+)
 
-final_df <- evi_df %>%
-  full_join(ndvi_df, by = key_cols, suffix = c("_evi", "_ndvi")) %>%
-  full_join(wpar_df, by = key_cols)
+df_binned <- final_df %>%
+  mutate(sif_bin = cut(Daily_SIF_757nm, breaks = sif_breaks, include.lowest = TRUE, right = FALSE))
 
-colnames(final_df)
+table(df_binned$sif_bin)
 
 #IQR rule
 
@@ -51,19 +51,6 @@ upper <- 1.75
 final_df <- final_df %>%
   filter(Daily_SIF_740nm >= lower, Daily_SIF_740nm <= upper)
 
-
-sif_breaks <- seq(
-  floor(min(final_df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
-  ceiling(max(final_df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
-  by = 0.25
-)
-
-df_binned <- final_df %>%
-  mutate(sif_bin = cut(Daily_SIF_740nm, breaks = sif_breaks, include.lowest = TRUE, right = FALSE))
-
-table(df_binned$sif_bin)
-
-nrow(evi_df) - nrow(df_binned)
 rm(evi_df, ndvi_df, wpar_df)
 sort(colSums(is.na(final_df)))
 

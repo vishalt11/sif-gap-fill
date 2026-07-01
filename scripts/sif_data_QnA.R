@@ -768,12 +768,6 @@ nrow(evi_df) - nrow(df_binned)
 rm(evi_df, ndvi_df, wpar_df)
 sort(colSums(is.na(final_df)))
 
-# ggplot(df_binned, aes(x = Daily_SIF_740nm)) +
-#   geom_histogram(binwidth = 0.25, boundary = 0, fill = "steelblue", color = "white") +
-#   labs(title = "Daily SIF 740 nm Histogram",x = "Daily_SIF_740nm",y = "Count") +
-#   theme_minimal()
-
-
 final_sif_polygons <- final_df %>%
   mutate(sif_row_id = row_number(), sif_date = as.Date(Delta_Date), across(all_of(c("Latitude", "Longitude", corner_cols, target_col)), as.numeric)) %>%
   mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
@@ -890,4 +884,83 @@ extreme_neighborhood_map <- leaflet::fitBounds(extreme_neighborhood_map, lng1 = 
 
 extreme_neighborhood_map
 
+#-------------------------------------------------------------------------------
+# Check df
+df <- readRDS('data/base_sif/sif_sf_1_12_cleaned.rds')
+df <- df %>% st_drop_geometry()
+nrow(df)
+colnames(df)
+
+table(df$Metadata.MeasurementMode)
+table(df$Quality_Flag)
+
+unique(lubridate::year(df$Delta_Date))
+df <- df[lubridate::year(df$Delta_Date) %in% c('2018', '2019', '2020', '2021', '2022', '2023', '2024'),]
+
+colSums(is.na(df))
+
+saveRDS(df, 'data/base_sif/sif_sf_1_12_cleaned.rds')
+
+#-------------------------------------------------------------------------------
+# combine modis data files and add hzs col
+evi_df <- readRDS('data/extracted_modis_data/evi_1_12.rds')
+evi_df <- evi_df %>% st_drop_geometry()
+ndvi_df <- readRDS('data/extracted_modis_data/ndvi_1_12.rds')
+ndvi_df <- ndvi_df %>% st_drop_geometry()
+wpar_df <- readRDS('data/extracted_modis_data/wpar_1_12.rds')
+wpar_df <- wpar_df %>% st_drop_geometry()
+
+key_cols <- Reduce(intersect,list(names(evi_df), names(ndvi_df), names(wpar_df)))
+
+final_df <- evi_df %>%
+  full_join(ndvi_df, by = key_cols, suffix = c("_evi", "_ndvi")) %>%
+  full_join(wpar_df, by = key_cols)
+
+colSums(is.na(final_df))
+colnames(final_df)
+
+final_df <- final_df %>% select(-c(evi_doy, evi_start_date, evi_day_offset, 
+                                   ndvi_doy, ndvi_start_date, ndvi_day_offset,
+                                   fapar_doy, fapar_start_date, fapar_day_offset,
+                                   par_doy, par_date, par_day_diff, sif_area_km2_ndvi))
+
+rm(evi_df, ndvi_df, wpar_df)
+saveRDS(final_df, 'data/extracted_modis_data/modis_1_12.rds')
+
+final_df <- readRDS('data/extracted_modis_data/modis_1_12.rds')
+# give each sif row a aggro climatic zone depending on which of these geometries they fall in
+root_dir <- 'temp'
+files_zones <- c('DE_HZ_5b.geojson', 'DE_HZ_6a.geojson', 'DE_HZ_6b.geojson', 'DE_HZ_7a.geojson', 
+                 'DE_HZ_7b.geojson', 'DE_HZ_8a.geojson', 'DE_HZ_8b.geojson', 'DE_HZ_9a.geojson')
+
+agro_climatic_zones <- files_zones %>%
+  map_dfr(~ sf::read_sf(file.path(root_dir, .x), quiet = TRUE) %>% st_make_valid() %>% dplyr::select(hzs, geometry))
+
+df_sif_polygons <- final_df %>%
+  mutate(sif_row_id = row_number(), across(all_of(c("Latitude", "Longitude", corner_cols, target_col)), as.numeric)) %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+df_sif_centroids <- df_sif_polygons %>%
+  st_transform(centroid_crs) %>%
+  st_centroid() %>%
+  st_transform(4326)
+
+df_zone_lookup <- df_sif_centroids %>%
+  dplyr::select(sif_row_id) %>%
+  st_join(agro_climatic_zones %>% dplyr::select(hzs), join = st_within, left = TRUE) %>%
+  st_drop_geometry() %>%
+  dplyr::select(sif_row_id, hzs)
+
+final_df <- df_sif_polygons %>%
+  st_drop_geometry() %>%
+  left_join(df_zone_lookup, by = "sif_row_id") %>%
+  arrange(sif_row_id) %>%
+  dplyr::select(-sif_row_id)
+
+final_df <- final_df %>%
+  filter(!is.na(mean_par), !is.na(apar))
+
+saveRDS(final_df, 'data/extracted_modis_data/modis_1_12.rds')
 
