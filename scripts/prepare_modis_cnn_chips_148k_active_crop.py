@@ -1,11 +1,18 @@
 """
-Prepare 16x16 MODIS-scale raster chips for the refined 148k OCO-2 SIF dataset.
+Prepare 16x16 MODIS-scale raster chips for the refined OCO-2 SIF dataset.
 
-Differences from the first chip-prep script:
-  - input is data/148k_cnn_sif.csv
+Current setup:
+  - input is data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_M0QF0_cnn.csv
+  - one chip is prepared per SIF row
+  - each chip carries all three possible targets in metadata:
+      Daily_SIF_757nm, Daily_SIF_771nm, target_modis_sif
+  - each target has its own final accept/reject flag:
+      final_check_757, final_check_771, final_check_modis_sif
   - no latitude/longitude channels
   - hzs is preserved as metadata only, not used as a training channel
   - crop channels are revised and include active_crop_fraction
+  - FAPAR/EVI/NDVI use the 8-day composite interval containing the SIF date
+  - PAR uses the closest downloaded PAR day because only 8-day increments were downloaded
   - output is written to a separate folder
 """
 
@@ -34,7 +41,7 @@ from shapely.geometry import MultiPoint, Polygon, box, mapping, shape
 # ---------------------------------------------------------------------------
 # Config
 
-SIF_CSV_PATH = Path("data/148k_cnn_sif.csv")
+SIF_CSV_PATH = Path("data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_M0QF0_cnn.csv")
 
 GEOTIFF_ROOT = Path("data/glass_geotiff")
 FAPAR_DIR = GEOTIFF_ROOT / "fapar"
@@ -43,12 +50,15 @@ NDVI_DIR = GEOTIFF_ROOT / "ndvi"
 PAR_DIR = GEOTIFF_ROOT / "par"
 CROP_DIR = Path("data/crop_type_tif")
 
-OUTPUT_DIR = Path("data/cnn_modis_chips/modis_8day_250m_16x16_148k_active_crop")
+OUTPUT_DIR = Path("data/cnn_modis_chips/modis_2_7_uncertainty_corrected_M0QF0_16x16_active_crop")
 
 YEARS = set(range(2019, 2025))
 MONTHS = set(range(2, 8))
 GLASS_DOYS = np.arange(33, 210, 8, dtype=np.int16)
 MODIS_TILES = ("h18v03", "h18v04")
+
+TARGET_COLUMNS = ["Daily_SIF_757nm", "Daily_SIF_771nm", "target_modis_sif"]
+FINAL_CHECK_COLUMNS = ["final_check_757", "final_check_771", "final_check_modis_sif"]
 
 CHIP_SIZE = 16
 CHIP_RES_M = 250.0
@@ -254,22 +264,59 @@ def containing_glass_doy(sif_doy: int) -> int:
     return int(candidates[-1])
 
 
+def closest_downloaded_doy(sif_doy: int) -> int:
+    return int(GLASS_DOYS[np.argmin(np.abs(GLASS_DOYS - sif_doy))])
+
+
+def require_columns(df: pd.DataFrame, columns: list[str]) -> None:
+    missing = [column for column in columns if column not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+
 def load_sif_footprints() -> gpd.GeoDataFrame:
     df = pd.read_csv(SIF_CSV_PATH)
     df = df.copy()
 
+    required_columns = [
+        "Delta_Date",
+        "Latitude",
+        "Longitude",
+        "Lat_corner1",
+        "Lat_corner2",
+        "Lat_corner3",
+        "Lat_corner4",
+        "Lon_corner1",
+        "Lon_corner2",
+        "Lon_corner3",
+        "Lon_corner4",
+        "state",
+        "Daily_SIF_757nm",
+        "Daily_SIF_771nm",
+        *FINAL_CHECK_COLUMNS,
+    ]
+    require_columns(df, required_columns)
+
     if "source_csv_row" not in df.columns:
         df.insert(0, "source_csv_row", np.arange(1, len(df) + 1, dtype=np.int64))
+
+    if "target_modis_sif" not in df.columns:
+        df["target_modis_sif"] = (df["Daily_SIF_757nm"] + 1.5 * df["Daily_SIF_771nm"]) / 2
 
     df["Delta_Date"] = pd.to_datetime(df["Delta_Date"], errors="coerce")
     df["sif_year"] = df["Delta_Date"].dt.year
     df["sif_doy"] = df["Delta_Date"].dt.dayofyear
     df["month"] = df["Delta_Date"].dt.month
 
+    if "Quality_Flag" in df.columns:
+        df = df[df["Quality_Flag"] == 0].copy()
+
+    if "Metadata.MeasurementMode" in df.columns:
+        df = df[df["Metadata.MeasurementMode"] == 0].copy()
+
     df = df[
         df["sif_year"].isin(YEARS)
         & df["month"].isin(MONTHS)
-        & df["Daily_SIF_740nm"].notna()
         & df["Delta_Date"].notna()
     ].copy()
 
@@ -285,6 +332,7 @@ def load_sif_footprints() -> gpd.GeoDataFrame:
     df["Delta_Date"] = df["Delta_Date"].dt.date
 
     df["composite_doy"] = df["sif_doy"].map(containing_glass_doy).astype(np.int16)
+    df["par_doy"] = df["sif_doy"].map(closest_downloaded_doy).astype(np.int16)
     df["composite_start_date"] = pd.to_datetime(
         df["sif_year"].astype(str) + df["composite_doy"].astype(str).str.zfill(3),
         format="%Y%j",
@@ -293,6 +341,11 @@ def load_sif_footprints() -> gpd.GeoDataFrame:
         pd.to_datetime(df["composite_start_date"]) + pd.Timedelta(days=7)
     ).dt.date
     df["composite_day_offset"] = df["sif_doy"] - df["composite_doy"]
+    df["par_date"] = pd.to_datetime(
+        df["sif_year"].astype(str) + df["par_doy"].astype(str).str.zfill(3),
+        format="%Y%j",
+    ).dt.date
+    df["par_day_diff"] = df["sif_doy"] - df["par_doy"]
 
     df = df.sort_values(["sif_year", "composite_doy", "state", "month", "sif_row_id"])
 
@@ -509,6 +562,7 @@ def constant_channel(value: float) -> np.ndarray:
 def build_chip(row: pd.Series, geom_modis) -> tuple[np.ndarray, np.ndarray, dict]:
     year = int(row["sif_year"])
     doy = int(row["composite_doy"])
+    par_doy = int(row["par_doy"])
     month = int(row["month"])
 
     dst_transform = make_chip_transform(geom_modis)
@@ -516,7 +570,7 @@ def build_chip(row: pd.Series, geom_modis) -> tuple[np.ndarray, np.ndarray, dict
     fapar = mosaic_modis_product_chip("fapar", year, doy, dst_transform)
     evi = mosaic_modis_product_chip("evi", year, doy, dst_transform)
     ndvi = mosaic_modis_product_chip("ndvi", year, doy, dst_transform)
-    par = par_chip(year, doy, dst_transform)
+    par = par_chip(year, par_doy, dst_transform)
     apar = fapar * par
 
     crop_channels = crop_fractions_chip(year, month, dst_transform)
@@ -559,7 +613,15 @@ def build_chip(row: pd.Series, geom_modis) -> tuple[np.ndarray, np.ndarray, dict
         "composite_start_date": row["composite_start_date"],
         "composite_end_date": row["composite_end_date"],
         "composite_day_offset": int(row["composite_day_offset"]),
-        "Daily_SIF_740nm": float(row["Daily_SIF_740nm"]),
+        "par_doy": par_doy,
+        "par_date": row["par_date"],
+        "par_day_diff": int(row["par_day_diff"]),
+        "Daily_SIF_757nm": float(row["Daily_SIF_757nm"]) if pd.notna(row["Daily_SIF_757nm"]) else np.nan,
+        "Daily_SIF_771nm": float(row["Daily_SIF_771nm"]) if pd.notna(row["Daily_SIF_771nm"]) else np.nan,
+        "target_modis_sif": float(row["target_modis_sif"]) if pd.notna(row["target_modis_sif"]) else np.nan,
+        "final_check_757": row["final_check_757"],
+        "final_check_771": row["final_check_771"],
+        "final_check_modis_sif": row["final_check_modis_sif"],
         "Latitude": float(row["Latitude"]),
         "Longitude": float(row["Longitude"]),
         "mask_sum": float(mask.sum()),
@@ -595,7 +657,7 @@ def write_shard(
     shard_id: int,
     xs: list[np.ndarray],
     masks: list[np.ndarray],
-    ys: list[float],
+    y_targets: list[list[float]],
     row_ids: list[int],
 ) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -604,7 +666,8 @@ def write_shard(
         path,
         X=np.stack(xs, axis=0).astype(np.float32),
         footprint_mask=np.stack(masks, axis=0).astype(np.float32),
-        y=np.asarray(ys, dtype=np.float32),
+        y_targets=np.asarray(y_targets, dtype=np.float32),
+        target_names=np.asarray(TARGET_COLUMNS),
         sif_row_id=np.asarray(row_ids),
         channel_names=np.asarray(CHANNEL_NAMES),
     )
@@ -620,12 +683,12 @@ def prepare_chips() -> None:
     metadata_rows = []
     xs: list[np.ndarray] = []
     masks: list[np.ndarray] = []
-    ys: list[float] = []
+    y_targets: list[list[float]] = []
     row_ids: list[int] = []
     shard_id = 0
 
     def handle_result(result: tuple[int, np.ndarray, np.ndarray, dict]) -> None:
-        nonlocal shard_id, xs, masks, ys, row_ids
+        nonlocal shard_id, xs, masks, y_targets, row_ids
         idx, x, mask, metadata = result
         if idx % 100 == 0:
             print(f"Prepared chip {idx + 1:,} / {len(sif_gdf):,}")
@@ -635,15 +698,15 @@ def prepare_chips() -> None:
 
         xs.append(x)
         masks.append(mask)
-        ys.append(metadata["Daily_SIF_740nm"])
+        y_targets.append([metadata[column] for column in TARGET_COLUMNS])
         row_ids.append(metadata["sif_row_id"])
         metadata_rows.append(metadata)
 
         if len(xs) == SHARD_SIZE:
-            written = write_shard(shard_id, xs, masks, ys, row_ids)
+            written = write_shard(shard_id, xs, masks, y_targets, row_ids)
             print(f"Wrote {written}")
             shard_id += 1
-            xs, masks, ys, row_ids = [], [], [], []
+            xs, masks, y_targets, row_ids = [], [], [], []
 
     payloads = (
         make_payload(idx, row, sif_modis.geometry.iloc[idx])
@@ -659,7 +722,7 @@ def prepare_chips() -> None:
                 handle_result(result)
 
     if xs:
-        written = write_shard(shard_id, xs, masks, ys, row_ids)
+        written = write_shard(shard_id, xs, masks, y_targets, row_ids)
         print(f"Wrote {written}")
 
     metadata = pd.DataFrame(metadata_rows)
