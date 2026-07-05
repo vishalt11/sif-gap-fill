@@ -964,3 +964,21 @@ final_df <- final_df %>%
 
 saveRDS(final_df, 'data/extracted_modis_data/modis_1_12.rds')
 
+#-------------------------------------------------------------------------------
+
+df <- readRDS('data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_cnn.rds')
+summary(df[df$Metadata.MeasurementMode == 1 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]$target_modis_sif)
+
+final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+
+sif_breaks <- seq(
+  floor(min(final_df$target_modis_sif, na.rm = TRUE) / 0.25) * 0.25,
+  ceiling(max(final_df$target_modis_sif, na.rm = TRUE) / 0.25) * 0.25,
+  by = 0.25
+)
+
+df_binned <- final_df %>%
+  mutate(sif_bin = cut(target_modis_sif, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)) %>%
+  select(sif_bin)
+
+table(df_binned$sif_bin)
