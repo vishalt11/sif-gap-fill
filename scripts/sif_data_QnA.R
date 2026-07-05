@@ -966,19 +966,64 @@ saveRDS(final_df, 'data/extracted_modis_data/modis_1_12.rds')
 
 #-------------------------------------------------------------------------------
 
-df <- readRDS('data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_cnn.rds')
+df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
 summary(df[df$Metadata.MeasurementMode == 1 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]$target_modis_sif)
 
 final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+final_df <- final_df[lubridate::month(final_df$Delta_Date) %in% 2:7,]
+summary(final_df$sif_area_km2_evi)
 
 sif_breaks <- seq(
-  floor(min(final_df$target_modis_sif, na.rm = TRUE) / 0.25) * 0.25,
-  ceiling(max(final_df$target_modis_sif, na.rm = TRUE) / 0.25) * 0.25,
+  floor(min(final_df$sif_area_km2_evi, na.rm = TRUE) / 0.25) * 0.25,
+  ceiling(max(final_df$sif_area_km2_evi, na.rm = TRUE) / 0.25) * 0.25,
   by = 0.25
 )
 
 df_binned <- final_df %>%
-  mutate(sif_bin = cut(target_modis_sif, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)) %>%
-  select(sif_bin)
+  mutate(area_bin = cut(sif_area_km2_evi, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)) %>%
+  select(area_bin)
 
-table(df_binned$sif_bin)
+table(df_binned$area_bin)
+
+
+#-------------------------------------------------------------------------------
+# Plot small areas and big areas
+df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
+final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+final_df <- final_df[lubridate::month(final_df$Delta_Date) %in% 2:7,]
+
+area_candidates <- final_df %>%
+  mutate(source_row = row_number(), sif_area_km2_evi = as.numeric(sif_area_km2_evi), across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric)) %>%
+  filter(!is.na(sif_area_km2_evi), if_all(all_of(corner_cols), ~ !is.na(.x)))
+
+small_area_rows <- area_candidates %>%
+  slice_min(order_by = sif_area_km2_evi, n = 100, with_ties = FALSE) %>%
+  arrange(sif_area_km2_evi) %>%
+  mutate(area_group = "Smallest 10 SIF polygons", area_rank = row_number())
+
+summary(small_area_rows$crop_pixel_count)
+
+large_area_rows <- area_candidates %>%
+  slice_max(order_by = sif_area_km2_evi, n = 100, with_ties = FALSE) %>%
+  arrange(desc(sif_area_km2_evi)) %>%
+  mutate(area_group = "Largest 10 SIF polygons", area_rank = row_number())
+
+small_big_area_polygons <- bind_rows(small_area_rows, large_area_rows) %>%
+  mutate(area_label = paste0(area_group, " #", area_rank, " | area=", round(sif_area_km2_evi, 4), " km2 | SIF=", round(target_modis_sif, 3), " | date=", Delta_Date), geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+small_big_area_pal <- leaflet::colorNumeric(palette = "viridis", domain = small_big_area_polygons$sif_area_km2_evi, na.color = "transparent")
+small_big_area_bbox <- st_bbox(small_big_area_polygons)
+
+small_big_area_map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
+  leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Esri World Imagery") %>%
+  leaflet::addPolygons(data = small_big_area_polygons %>% filter(area_group == "Smallest 10 SIF polygons"), color = "#00d5ff", fillColor = ~small_big_area_pal(sif_area_km2_evi), weight = 2, opacity = 1, fillOpacity = 0.7, label = ~area_label, group = "Smallest 10 SIF polygons") %>%
+  leaflet::addPolygons(data = small_big_area_polygons %>% filter(area_group == "Largest 10 SIF polygons"), color = "#ff2d55", fillColor = ~small_big_area_pal(sif_area_km2_evi), weight = 2, opacity = 1, fillOpacity = 0.7, label = ~area_label, group = "Largest 10 SIF polygons") %>%
+  leaflet::addLegend(position = "bottomright", pal = small_big_area_pal, values = small_big_area_polygons$sif_area_km2_evi, title = "SIF area km2", opacity = 0.85) %>%
+  leaflet::addLayersControl(baseGroups = "Esri World Imagery", overlayGroups = c("Smallest 10 SIF polygons", "Largest 10 SIF polygons"), options = leaflet::layersControlOptions(collapsed = FALSE))
+
+small_big_area_map <- leaflet::fitBounds(small_big_area_map, lng1 = small_big_area_bbox[["xmin"]], lat1 = small_big_area_bbox[["ymin"]], lng2 = small_big_area_bbox[["xmax"]], lat2 = small_big_area_bbox[["ymax"]])
+
+small_big_area_map
+
