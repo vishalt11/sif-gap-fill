@@ -1,12 +1,14 @@
 library(tidyverse)
 library(sf)
+
+
 library(giscoR)
 library(terra)
 library(raster)
 library(leaflet)
 library(htmlwidgets)
 
-set.seed(42)
+
 corner_cols <- c(
   "Lat_corner1", "Lat_corner2", "Lat_corner3", "Lat_corner4",
   "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
@@ -26,6 +28,7 @@ make_sif_polygon <- function(lon1, lat1, lon2, lat2, lon3, lat3, lon4, lat4) {
   )))
 }
 
+set.seed(42)
 sif_path <- "data/sif_sf_months2_7_cleaned.rds"
 
 sif_raw <- readRDS(sif_path)
@@ -973,10 +976,12 @@ final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'a
 final_df <- final_df[lubridate::month(final_df$Delta_Date) %in% 2:7,]
 summary(final_df$sif_area_km2_evi)
 
+inc <- 0.10
+
 sif_breaks <- seq(
-  floor(min(final_df$sif_area_km2_evi, na.rm = TRUE) / 0.25) * 0.25,
-  ceiling(max(final_df$sif_area_km2_evi, na.rm = TRUE) / 0.25) * 0.25,
-  by = 0.25
+  floor(min(final_df$sif_area_km2_evi, na.rm = TRUE) / inc) * inc,
+  ceiling(max(final_df$sif_area_km2_evi, na.rm = TRUE) / inc) * inc,
+  by = inc
 )
 
 df_binned <- final_df %>%
@@ -990,40 +995,45 @@ table(df_binned$area_bin)
 # Plot small areas and big areas
 df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
 final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+#final_df <- df[df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
 final_df <- final_df[lubridate::month(final_df$Delta_Date) %in% 2:7,]
 
-area_candidates <- final_df %>%
-  mutate(source_row = row_number(), sif_area_km2_evi = as.numeric(sif_area_km2_evi), across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric)) %>%
-  filter(!is.na(sif_area_km2_evi), if_all(all_of(corner_cols), ~ !is.na(.x)))
+#final_df <- final_df[final_df$sif_area_km2_evi >= 0.6,]
 
-small_area_rows <- area_candidates %>%
-  slice_min(order_by = sif_area_km2_evi, n = 100, with_ties = FALSE) %>%
-  arrange(sif_area_km2_evi) %>%
-  mutate(area_group = "Smallest 10 SIF polygons", area_rank = row_number())
+final_df <- final_df %>%
+  mutate(crop_pixel_area_km2 = crop_pixel_count * 0.0001,
+         crop_pixel_area_pct = (crop_pixel_area_km2 / sif_area_km2_evi) * 100)
 
-summary(small_area_rows$crop_pixel_count)
+final_df <- final_df[final_df$crop_pixel_area_pct < 0.1,]
+final_df <- final_df[lubridate::month(final_df$Delta_Date) == 5,]
 
-large_area_rows <- area_candidates %>%
-  slice_max(order_by = sif_area_km2_evi, n = 100, with_ties = FALSE) %>%
-  arrange(desc(sif_area_km2_evi)) %>%
-  mutate(area_group = "Largest 10 SIF polygons", area_rank = row_number())
+# final_df <- final_df %>% select(Daily_SIF_757nm, Daily_SIF_771nm, target_modis_sif,
+#                                 Latitude, Longitude, Delta_Time,
+#                                 Lat_corner1, Lat_corner2, Lat_corner3, Lat_corner4,
+#                                 Lon_corner1, Lon_corner2, Lon_corner3, Lon_corner4,
+#                                 sif_area_km2_evi, Delta_Date, Metadata.MeasurementMode, Quality_Flag, state,
+#                                 hzs, final_check_757, final_check_771, final_check_modis_sif)
+# 
+# write_csv(final_df, 'data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_M0QF0_gt0_6area_cnn.csv')
 
-small_big_area_polygons <- bind_rows(small_area_rows, large_area_rows) %>%
-  mutate(area_label = paste0(area_group, " #", area_rank, " | area=", round(sif_area_km2_evi, 4), " km2 | SIF=", round(target_modis_sif, 3), " | date=", Delta_Date), geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+low_crop_pct_polygons <- final_df %>%
+  mutate(source_row = row_number(), crop_pixel_area_pct = as.numeric(crop_pixel_area_pct), target_modis_sif = as.numeric(target_modis_sif), across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric)) %>%
+  filter(!is.na(crop_pixel_area_pct), !is.na(target_modis_sif), if_all(all_of(corner_cols), ~ !is.na(.x))) %>%
+  slice_min(order_by = crop_pixel_area_pct, n = 1000, with_ties = FALSE) %>%
+  arrange(crop_pixel_area_pct) %>%
+  mutate(crop_pct_rank = row_number(), crop_pct_label = paste0("rank=", crop_pct_rank, " | crop pct=", round(crop_pixel_area_pct, 4), "% | target SIF=", round(target_modis_sif, 3), " | area=", round(sif_area_km2_evi, 4), " km2 | date=", Delta_Date), geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
   st_as_sf(crs = 4326) %>%
   st_make_valid()
 
-small_big_area_pal <- leaflet::colorNumeric(palette = "viridis", domain = small_big_area_polygons$sif_area_km2_evi, na.color = "transparent")
-small_big_area_bbox <- st_bbox(small_big_area_polygons)
+low_crop_pct_pal <- leaflet::colorNumeric(palette = "viridis", domain = low_crop_pct_polygons$target_modis_sif, na.color = "transparent")
+low_crop_pct_bbox <- st_bbox(low_crop_pct_polygons)
 
-small_big_area_map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
+low_crop_pct_map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
   leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Esri World Imagery") %>%
-  leaflet::addPolygons(data = small_big_area_polygons %>% filter(area_group == "Smallest 10 SIF polygons"), color = "#00d5ff", fillColor = ~small_big_area_pal(sif_area_km2_evi), weight = 2, opacity = 1, fillOpacity = 0.7, label = ~area_label, group = "Smallest 10 SIF polygons") %>%
-  leaflet::addPolygons(data = small_big_area_polygons %>% filter(area_group == "Largest 10 SIF polygons"), color = "#ff2d55", fillColor = ~small_big_area_pal(sif_area_km2_evi), weight = 2, opacity = 1, fillOpacity = 0.7, label = ~area_label, group = "Largest 10 SIF polygons") %>%
-  leaflet::addLegend(position = "bottomright", pal = small_big_area_pal, values = small_big_area_polygons$sif_area_km2_evi, title = "SIF area km2", opacity = 0.85) %>%
-  leaflet::addLayersControl(baseGroups = "Esri World Imagery", overlayGroups = c("Smallest 10 SIF polygons", "Largest 10 SIF polygons"), options = leaflet::layersControlOptions(collapsed = FALSE))
+  leaflet::addPolygons(data = low_crop_pct_polygons, color = ~low_crop_pct_pal(target_modis_sif), fillColor = ~low_crop_pct_pal(target_modis_sif), weight = 1.2, opacity = 1, fillOpacity = 0.90, label = ~crop_pct_label, group = "Lowest 100 crop pixel pct SIF polygons") %>%
+  leaflet::addLegend(position = "bottomright", pal = low_crop_pct_pal, values = low_crop_pct_polygons$target_modis_sif, title = "target_modis_sif", opacity = 0.85) %>%
+  leaflet::addLayersControl(baseGroups = "Esri World Imagery", overlayGroups = "Lowest 100 crop pixel pct SIF polygons", options = leaflet::layersControlOptions(collapsed = FALSE))
 
-small_big_area_map <- leaflet::fitBounds(small_big_area_map, lng1 = small_big_area_bbox[["xmin"]], lat1 = small_big_area_bbox[["ymin"]], lng2 = small_big_area_bbox[["xmax"]], lat2 = small_big_area_bbox[["ymax"]])
+low_crop_pct_map <- leaflet::fitBounds(low_crop_pct_map, lng1 = low_crop_pct_bbox[["xmin"]], lat1 = low_crop_pct_bbox[["ymin"]], lng2 = low_crop_pct_bbox[["xmax"]], lat2 = low_crop_pct_bbox[["ymax"]])
 
-small_big_area_map
-
+low_crop_pct_map
