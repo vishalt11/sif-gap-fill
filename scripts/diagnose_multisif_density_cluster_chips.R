@@ -1,0 +1,660 @@
+library(tidyverse)
+library(sf)
+library(lubridate)
+library(leaflet)
+library(dbscan)
+
+# Density-cluster diagnostic for multi-footprint CNN chips.
+#
+# Option 4:
+#   For each Delta_Date, cluster nearby SIF footprint centroids with DBSCAN.
+#   Split long same-date DBSCAN clusters into compact chunks of 5-10 footprints.
+#   Build one configured-size chip around each chunk.
+#
+# This is only a grouping diagnostic. It does not read MODIS rasters or make NPZ
+# files. The later Python chip-prep script can use these chip groups to rasterize
+# multiple footprint masks and train with multiple SIF supervision points per chip.
+
+sf::sf_use_s2(FALSE)
+
+input_csv <- "data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_M0QF0_gt0_6area_cnn.csv"
+output_dir <- "data/cnn_multisif_chip_diagnostics"
+
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+# MODIS 250 m is nominal. Your GLASS MODIS sinusoidal rasters are closer to
+# 231.656 m, but keep the user-facing 250 m chip size for this first diagnostic.
+pixel_size_m <- 250
+chip_pixels <- 24
+chip_size_m <- chip_pixels * pixel_size_m
+
+# DBSCAN parameters. eps is the maximum centroid-to-centroid neighborhood distance
+# used to connect footprints on the same date. If eps creates a long track segment,
+# the PCA chunking step below splits it into max_sif_per_chip chunks.
+dbscan_eps_m <- 1800
+min_sif_per_chip <- 5
+max_sif_per_chip <- 10
+
+leaflet_sample_n <- 10
+leaflet_seed <- 42
+
+# Use the same MODIS sinusoidal projection as the GLASS FAPAR/EVI/NDVI tiles.
+grid_crs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
+glass_start_doy <- 33
+glass_end_doy <- 209
+glass_step_days <- 8
+glass_doys <- seq(glass_start_doy, glass_end_doy, by = glass_step_days)
+
+corner_cols <- c(
+  "Lat_corner1", "Lat_corner2", "Lat_corner3", "Lat_corner4",
+  "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
+)
+
+make_sif_polygon <- function(lon1, lat1, lon2, lat2, lon3, lat3, lon4, lat4) {
+  st_polygon(list(rbind(
+    c(lon1, lat1),
+    c(lon2, lat2),
+    c(lon3, lat3),
+    c(lon4, lat4),
+    c(lon1, lat1)
+  )))
+}
+
+make_square_polygon <- function(xmin, ymin, xmax, ymax) {
+  st_polygon(list(rbind(
+    c(xmin, ymin),
+    c(xmax, ymin),
+    c(xmax, ymax),
+    c(xmin, ymax),
+    c(xmin, ymin)
+  )))
+}
+
+interval_glass_doy <- function(dates) {
+  sif_doy <- yday(dates)
+  sif_doy <- pmin(pmax(sif_doy, glass_start_doy), glass_end_doy)
+  glass_idx <- floor((sif_doy - glass_start_doy) / glass_step_days) + 1
+  glass_doys[glass_idx]
+}
+
+nearest_glass_doy <- function(dates) {
+  sif_doy <- yday(dates)
+  glass_doys[map_int(
+    sif_doy,
+    ~ which.min(abs(glass_doys - .x))
+  )]
+}
+
+make_balanced_chunks <- function(n, min_n, max_n) {
+  if (n < min_n) {
+    return(list())
+  }
+
+  if (n <= max_n) {
+    return(list(seq_len(n)))
+  }
+
+  n_chunks <- ceiling(n / max_n)
+
+  while (floor(n / n_chunks) < min_n && n_chunks > 1) {
+    n_chunks <- n_chunks - 1
+  }
+
+  chunk_sizes <- rep(floor(n / n_chunks), n_chunks)
+  remainder <- n %% n_chunks
+
+  if (remainder > 0) {
+    chunk_sizes[seq_len(remainder)] <- chunk_sizes[seq_len(remainder)] + 1
+  }
+
+  chunk_ends <- cumsum(chunk_sizes)
+  chunk_starts <- c(1, head(chunk_ends, -1) + 1)
+
+  map2(chunk_starts, chunk_ends, seq)
+}
+
+add_pca_track_score <- function(cluster_tbl) {
+  coords <- as.matrix(cluster_tbl[, c("centroid_x", "centroid_y")])
+
+  if (nrow(coords) < 2) {
+    return(cluster_tbl %>% mutate(track_score = centroid_x))
+  }
+
+  track_score <- tryCatch(
+    {
+      stats::prcomp(coords, center = TRUE, scale. = FALSE)$x[, 1]
+    },
+    error = function(e) {
+      coords[, 1]
+    }
+  )
+
+  cluster_tbl %>%
+    mutate(track_score = track_score)
+}
+
+split_dbscan_cluster <- function(cluster_tbl) {
+  n_cluster <- nrow(cluster_tbl)
+
+  if (n_cluster < min_sif_per_chip) {
+    return(tibble())
+  }
+
+  cluster_tbl <- cluster_tbl %>%
+    add_pca_track_score() %>%
+    arrange(track_score)
+
+  chunks <- make_balanced_chunks(
+    n = nrow(cluster_tbl),
+    min_n = min_sif_per_chip,
+    max_n = max_sif_per_chip
+  )
+
+  if (length(chunks) == 0) {
+    return(tibble())
+  }
+
+  date_string <- format(cluster_tbl$Delta_Date[[1]], "%Y%m%d")
+  dbscan_cluster <- cluster_tbl$dbscan_cluster[[1]]
+
+  imap_dfr(chunks, function(chunk_rows, chunk_i) {
+    chunk_tbl <- cluster_tbl[chunk_rows, ]
+    chip_id <- paste0(
+      "density_px",
+      chip_pixels,
+      "_",
+      date_string,
+      "_db",
+      dbscan_cluster,
+      "_chunk",
+      chunk_i
+    )
+
+    chunk_tbl %>%
+      mutate(
+        chip_pixels = chip_pixels,
+        chip_size_m = chip_size_m,
+        chip_id = chip_id,
+        dbscan_cluster_n = n_cluster,
+        chunk_number = chunk_i,
+        chunk_n_sif = nrow(chunk_tbl)
+      )
+  })
+}
+
+cluster_one_date <- function(date_tbl) {
+  if (nrow(date_tbl) < min_sif_per_chip) {
+    return(tibble())
+  }
+
+  coords <- as.matrix(date_tbl[, c("centroid_x", "centroid_y")])
+
+  dbscan_result <- dbscan::dbscan(
+    coords,
+    eps = dbscan_eps_m,
+    minPts = min_sif_per_chip
+  )
+
+  clustered_tbl <- date_tbl %>%
+    mutate(dbscan_cluster = dbscan_result$cluster) %>%
+    filter(dbscan_cluster > 0)
+
+  if (nrow(clustered_tbl) < min_sif_per_chip) {
+    return(tibble())
+  }
+
+  clustered_tbl %>%
+    group_by(dbscan_cluster) %>%
+    group_split() %>%
+    map_dfr(split_dbscan_cluster)
+}
+
+required_cols <- c("Delta_Date", corner_cols)
+
+message("Reading: ", input_csv)
+df <- read_csv(
+  input_csv,
+  col_types = cols(
+    Delta_Date = col_date(),
+    .default = col_guess()
+  ),
+  show_col_types = FALSE
+)
+
+missing_cols <- setdiff(required_cols, names(df))
+if (length(missing_cols) > 0) {
+  stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
+}
+
+message("Rows read: ", nrow(df))
+
+sif_sf <- df %>%
+  mutate(
+    sif_row_id = row_number(),
+    Delta_Date = as.Date(Delta_Date),
+    across(all_of(corner_cols), as.numeric)
+  ) %>%
+  filter(
+    !is.na(Delta_Date),
+    if_all(all_of(corner_cols), ~ !is.na(.x))
+  ) %>%
+  mutate(
+    geometry = pmap(
+      list(
+        Lon_corner1, Lat_corner1,
+        Lon_corner2, Lat_corner2,
+        Lon_corner3, Lat_corner3,
+        Lon_corner4, Lat_corner4
+      ),
+      make_sif_polygon
+    )
+  ) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+message("Valid SIF polygons: ", nrow(sif_sf))
+
+sif_projected <- sif_sf %>%
+  st_transform(grid_crs)
+
+sif_centroids <- suppressWarnings(st_centroid(sif_projected))
+centroid_xy <- st_coordinates(sif_centroids)
+
+sif_centroids_tbl <- sif_centroids %>%
+  st_drop_geometry() %>%
+  mutate(
+    centroid_x = centroid_xy[, "X"],
+    centroid_y = centroid_xy[, "Y"]
+  )
+
+message("Running same-date DBSCAN clustering...")
+density_assignments <- sif_centroids_tbl %>%
+  group_by(Delta_Date) %>%
+  group_split() %>%
+  map_dfr(cluster_one_date) %>%
+  arrange(Delta_Date, chip_id, track_score)
+
+if (nrow(density_assignments) == 0) {
+  stop("No density-cluster chips were found. Try increasing dbscan_eps_m.")
+}
+
+bad_chip_counts <- density_assignments %>%
+  count(chip_id, name = "n_sif") %>%
+  filter(
+    n_sif < min_sif_per_chip |
+    n_sif > max_sif_per_chip
+  )
+
+if (nrow(bad_chip_counts) > 0) {
+  message(
+    "Dropping ",
+    nrow(bad_chip_counts),
+    " generated chips outside the requested min/max SIF count."
+  )
+
+  write_csv(
+    bad_chip_counts,
+    file.path(output_dir, "density_cluster_dropped_chip_counts.csv")
+  )
+
+  density_assignments <- density_assignments %>%
+    filter(!chip_id %in% bad_chip_counts$chip_id)
+}
+
+if (nrow(density_assignments) == 0) {
+  stop("No density-cluster chips remain after applying the min/max SIF count filter.")
+}
+
+write_csv(
+  density_assignments,
+  file.path(output_dir, "density_cluster_sif_assignments.csv")
+)
+
+has_state <- "state" %in% names(density_assignments)
+has_hzs <- "hzs" %in% names(density_assignments)
+has_source_file <- "source_file" %in% names(density_assignments)
+has_target_modis_sif <- "target_modis_sif" %in% names(density_assignments)
+has_sif_area <- "sif_area_km2_evi" %in% names(density_assignments)
+
+chip_summary <- density_assignments %>%
+  group_by(chip_id, chip_pixels, chip_size_m, Delta_Date) %>%
+  summarise(
+    n_sif = n(),
+    center_x = mean(centroid_x),
+    center_y = mean(centroid_y),
+    dbscan_cluster_n = first(dbscan_cluster_n),
+    chunk_number = first(chunk_number),
+    n_state = if (has_state) n_distinct(state, na.rm = TRUE) else NA_integer_,
+    states = if (has_state) paste(sort(unique(na.omit(state))), collapse = ";") else NA_character_,
+    n_hzs = if (has_hzs) n_distinct(hzs, na.rm = TRUE) else NA_integer_,
+    hzs_values = if (has_hzs) paste(sort(unique(na.omit(hzs))), collapse = ";") else NA_character_,
+    n_source_file = if (has_source_file) n_distinct(source_file, na.rm = TRUE) else NA_integer_,
+    mean_target_modis_sif = if (has_target_modis_sif) mean(target_modis_sif, na.rm = TRUE) else NA_real_,
+    min_target_modis_sif = if (has_target_modis_sif) min(target_modis_sif, na.rm = TRUE) else NA_real_,
+    max_target_modis_sif = if (has_target_modis_sif) max(target_modis_sif, na.rm = TRUE) else NA_real_,
+    mean_sif_area_km2 = if (has_sif_area) mean(sif_area_km2_evi, na.rm = TRUE) else NA_real_,
+    min_sif_area_km2 = if (has_sif_area) min(sif_area_km2_evi, na.rm = TRUE) else NA_real_,
+    max_sif_area_km2 = if (has_sif_area) max(sif_area_km2_evi, na.rm = TRUE) else NA_real_,
+    sif_row_ids = paste(sif_row_id, collapse = ","),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    sif_year = year(Delta_Date),
+    sif_doy = yday(Delta_Date),
+    composite_doy = interval_glass_doy(Delta_Date),
+    composite_date = make_date(sif_year, 1, 1) + days(composite_doy - 1),
+    par_doy = nearest_glass_doy(Delta_Date),
+    par_date = make_date(sif_year, 1, 1) + days(par_doy - 1),
+    chip_xmin = center_x - chip_size_m / 2,
+    chip_xmax = center_x + chip_size_m / 2,
+    chip_ymin = center_y - chip_size_m / 2,
+    chip_ymax = center_y + chip_size_m / 2
+  ) %>%
+  arrange(Delta_Date, desc(n_sif), chip_id)
+
+write_csv(
+  chip_summary,
+  file.path(output_dir, "density_cluster_chip_summary.csv")
+)
+
+python_chip_manifest <- chip_summary %>%
+  select(
+    chip_id,
+    Delta_Date,
+    sif_year,
+    sif_doy,
+    composite_doy,
+    composite_date,
+    par_doy,
+    par_date,
+    chip_pixels,
+    chip_size_m,
+    center_x,
+    center_y,
+    chip_xmin,
+    chip_ymin,
+    chip_xmax,
+    chip_ymax,
+    n_sif,
+    dbscan_cluster_n,
+    chunk_number,
+    n_state,
+    states,
+    n_hzs,
+    hzs_values,
+    n_source_file,
+    mean_target_modis_sif,
+    min_target_modis_sif,
+    max_target_modis_sif,
+    mean_sif_area_km2,
+    min_sif_area_km2,
+    max_sif_area_km2,
+    sif_row_ids
+  )
+
+python_assignment_cols <- c(
+  "chip_id", "sif_row_id", "Delta_Date",
+  "sif_year", "sif_doy", "composite_doy", "par_doy",
+  "chip_pixels", "chip_size_m", "chunk_number", "chunk_n_sif",
+  "centroid_x", "centroid_y", "track_score",
+  "Daily_SIF_757nm", "Daily_SIF_771nm", "target_modis_sif",
+  "final_check_757", "final_check_771", "final_check_modis_sif",
+  "Latitude", "Longitude",
+  corner_cols,
+  "state", "hzs", "source_file", "file_id",
+  "Quality_Flag", "Metadata.MeasurementMode", "sif_area_km2_evi"
+)
+
+python_chip_assignments <- density_assignments %>%
+  mutate(
+    sif_year = year(Delta_Date),
+    sif_doy = yday(Delta_Date),
+    composite_doy = interval_glass_doy(Delta_Date),
+    par_doy = nearest_glass_doy(Delta_Date)
+  ) %>%
+  select(any_of(python_assignment_cols)) %>%
+  arrange(chip_id, track_score, sif_row_id)
+
+write_csv(
+  python_chip_manifest,
+  file.path(output_dir, "multi_sif_24px_5to10_chip_manifest.csv")
+)
+
+write_csv(
+  python_chip_assignments,
+  file.path(output_dir, "multi_sif_24px_5to10_chip_assignments.csv")
+)
+
+chip_count_distribution <- chip_summary %>%
+  count(n_sif, name = "n_chip_dates") %>%
+  mutate(
+    pct_chip_dates = n_chip_dates / sum(n_chip_dates),
+    cum_chip_dates_ge_n = rev(cumsum(rev(n_chip_dates))),
+    pct_chip_dates_ge_n = cum_chip_dates_ge_n / sum(n_chip_dates)
+  ) %>%
+  arrange(n_sif)
+
+write_csv(
+  chip_count_distribution,
+  file.path(output_dir, "density_cluster_chip_count_distribution.csv")
+)
+
+threshold_summary <- chip_summary %>%
+  summarise(
+    chip_pixels = first(chip_pixels),
+    chip_size_m = first(chip_size_m),
+    dbscan_eps_m = dbscan_eps_m,
+    min_sif_per_chip = min_sif_per_chip,
+    max_sif_per_chip = max_sif_per_chip,
+    n_chip_dates = n(),
+    n_sif_rows_assigned = sum(n_sif),
+    n_unique_dates = n_distinct(Delta_Date),
+    max_sif_per_chip_date = max(n_sif),
+    mean_sif_per_chip_date = mean(n_sif),
+    median_sif_per_chip_date = median(n_sif),
+    chip_dates_ge_4 = sum(n_sif >= 4),
+    chip_dates_ge_5 = sum(n_sif >= 5),
+    chip_dates_ge_6 = sum(n_sif >= 6),
+    chip_dates_ge_8 = sum(n_sif >= 8),
+    chip_dates_ge_10 = sum(n_sif >= 10),
+    sif_rows_in_chip_dates_ge_4 = sum(n_sif[n_sif >= 4]),
+    sif_rows_in_chip_dates_ge_5 = sum(n_sif[n_sif >= 5]),
+    sif_rows_in_chip_dates_ge_6 = sum(n_sif[n_sif >= 6]),
+    sif_rows_in_chip_dates_ge_8 = sum(n_sif[n_sif >= 8]),
+    sif_rows_in_chip_dates_ge_10 = sum(n_sif[n_sif >= 10]),
+    pct_chip_dates_ge_4 = chip_dates_ge_4 / n_chip_dates,
+    pct_chip_dates_ge_5 = chip_dates_ge_5 / n_chip_dates,
+    pct_chip_dates_ge_6 = chip_dates_ge_6 / n_chip_dates,
+    pct_chip_dates_ge_8 = chip_dates_ge_8 / n_chip_dates,
+    pct_chip_dates_ge_10 = chip_dates_ge_10 / n_chip_dates,
+    pct_sif_rows_in_chip_dates_ge_4 = sif_rows_in_chip_dates_ge_4 / n_sif_rows_assigned,
+    pct_sif_rows_in_chip_dates_ge_5 = sif_rows_in_chip_dates_ge_5 / n_sif_rows_assigned,
+    pct_sif_rows_in_chip_dates_ge_6 = sif_rows_in_chip_dates_ge_6 / n_sif_rows_assigned,
+    pct_sif_rows_in_chip_dates_ge_8 = sif_rows_in_chip_dates_ge_8 / n_sif_rows_assigned,
+    pct_sif_rows_in_chip_dates_ge_10 = sif_rows_in_chip_dates_ge_10 / n_sif_rows_assigned
+  )
+
+write_csv(
+  threshold_summary,
+  file.path(output_dir, "density_cluster_threshold_summary.csv")
+)
+
+chip_sf <- chip_summary %>%
+  mutate(
+    geometry = pmap(
+      list(chip_xmin, chip_ymin, chip_xmax, chip_ymax),
+      make_square_polygon
+    )
+  ) %>%
+  st_as_sf(crs = grid_crs)
+
+saveRDS(
+  chip_sf,
+  file.path(output_dir, "density_cluster_chip_polygons.rds")
+)
+
+message("\nThreshold summary:")
+print(threshold_summary)
+
+message("\nCount distribution:")
+print(chip_count_distribution, n = 100)
+
+message("\nWrote outputs to: ", output_dir)
+message("Main files:")
+message("  - multi_sif_24px_5to10_chip_manifest.csv")
+message("  - multi_sif_24px_5to10_chip_assignments.csv")
+message("  - density_cluster_threshold_summary.csv")
+message("  - density_cluster_chip_count_distribution.csv")
+message("  - density_cluster_chip_summary.csv")
+message("  - density_cluster_sif_assignments.csv")
+message("  - density_cluster_chip_polygons.rds")
+
+#-------------------------------------------------------------------------------
+# Leaflet preview: sample density-cluster chips and their same-date SIF footprints
+
+leaflet_candidates <- chip_sf %>%
+  filter(
+    n_sif >= min_sif_per_chip,
+    n_sif <= max_sif_per_chip
+  )
+
+if (nrow(leaflet_candidates) == 0) {
+  warning("No density-cluster chips available for leaflet preview.")
+} else {
+  set.seed(leaflet_seed)
+
+  leaflet_chips <- leaflet_candidates %>%
+    slice_sample(n = min(leaflet_sample_n, nrow(leaflet_candidates)))
+
+  leaflet_assignments <- density_assignments %>%
+    filter(chip_id %in% leaflet_chips$chip_id) %>%
+    select(sif_row_id, chip_id, chunk_number, chunk_n_sif)
+
+  leaflet_sif <- sif_projected %>%
+    inner_join(leaflet_assignments, by = "sif_row_id") %>%
+    st_transform(4326)
+
+  leaflet_chips_map <- leaflet_chips %>%
+    st_transform(4326) %>%
+    mutate(
+      chip_popup = paste0(
+        "<b>", chip_id, "</b>",
+        "<br>Date: ", Delta_Date,
+        "<br>Chip: ", chip_pixels, "x", chip_pixels,
+        "<br>DBSCAN eps m: ", dbscan_eps_m,
+        "<br>SIF footprints: ", n_sif,
+        "<br>Original DBSCAN cluster n: ", dbscan_cluster_n,
+        "<br>Chunk number: ", chunk_number,
+        "<br>States: ", states,
+        "<br>HZS: ", hzs_values
+      )
+    )
+
+  leaflet_sif_map <- leaflet_sif %>%
+    mutate(
+      sif_popup = paste0(
+        "<b>SIF row: ", sif_row_id, "</b>",
+        "<br>Date: ", Delta_Date,
+        "<br>Chip: ", chip_id,
+        if ("target_modis_sif" %in% names(.)) {
+          paste0("<br>target_modis_sif: ", round(target_modis_sif, 4))
+        } else {
+          ""
+        },
+        if ("sif_area_km2_evi" %in% names(.)) {
+          paste0("<br>area km2: ", round(sif_area_km2_evi, 4))
+        } else {
+          ""
+        },
+        if ("state" %in% names(.)) {
+          paste0("<br>state: ", state)
+        } else {
+          ""
+        },
+        if ("hzs" %in% names(.)) {
+          paste0("<br>hzs: ", hzs)
+        } else {
+          ""
+        }
+      )
+    )
+
+  chip_pal <- colorNumeric(
+    palette = "YlOrRd",
+    domain = leaflet_chips_map$n_sif,
+    na.color = "#cccccc"
+  )
+
+  if ("target_modis_sif" %in% names(leaflet_sif_map)) {
+    sif_pal <- colorNumeric(
+      palette = "RdYlGn",
+      domain = leaflet_sif_map$target_modis_sif,
+      na.color = "#999999"
+    )
+    sif_fill <- ~sif_pal(target_modis_sif)
+  } else {
+    sif_fill <- "#ff7f00"
+  }
+
+  leaflet_map <- leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+    addProviderTiles(providers$Esri.WorldImagery, group = "Esri imagery") %>%
+    addProviderTiles(providers$CartoDB.Positron, group = "CartoDB positron") %>%
+    addPolygons(
+      data = leaflet_chips_map,
+      group = "density chip boxes",
+      color = "#2b6cb0",
+      weight = 2,
+      fillColor = ~chip_pal(n_sif),
+      fillOpacity = 0.18,
+      popup = ~chip_popup,
+      label = ~paste0(chip_id, " | n=", n_sif)
+    ) %>%
+    addPolygons(
+      data = leaflet_sif_map,
+      group = "SIF footprints",
+      color = "#111111",
+      weight = 1,
+      fillColor = sif_fill,
+      fillOpacity = 0.55,
+      popup = ~sif_popup,
+      label = ~paste0("SIF row ", sif_row_id, " | ", chip_id)
+    ) %>%
+    addLegend(
+      position = "bottomright",
+      pal = chip_pal,
+      values = leaflet_chips_map$n_sif,
+      title = "SIFs per chip",
+      opacity = 0.8
+    ) %>%
+    addLayersControl(
+      baseGroups = c("Esri imagery", "CartoDB positron"),
+      overlayGroups = c("density chip boxes", "SIF footprints"),
+      options = layersControlOptions(collapsed = FALSE)
+    )
+
+  leaflet_html <- file.path(
+    output_dir,
+    sprintf(
+      "density_cluster_leaflet_sample_%dpx_min%d_max%d_%dchips.html",
+      chip_pixels,
+      min_sif_per_chip,
+      max_sif_per_chip,
+      min(leaflet_sample_n, nrow(leaflet_candidates))
+    )
+  )
+
+  htmlwidgets::saveWidget(
+    leaflet_map,
+    file = leaflet_html,
+    selfcontained = TRUE
+  )
+
+  message("\nLeaflet preview wrote: ", leaflet_html)
+  message(
+    "Sampled ",
+    nrow(leaflet_chips),
+    " density chips and ",
+    nrow(leaflet_sif_map),
+    " SIF footprints."
+  )
+}
