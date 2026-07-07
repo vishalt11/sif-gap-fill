@@ -35,7 +35,7 @@ dbscan_eps_m <- 1800
 min_sif_per_chip <- 5
 max_sif_per_chip <- 10
 
-leaflet_sample_n <- 10
+leaflet_sample_n <- 100
 leaflet_seed <- 42
 
 # Use the same MODIS sinusoidal projection as the GLASS FAPAR/EVI/NDVI tiles.
