@@ -4,7 +4,6 @@ library(sf)
 
 library(giscoR)
 library(terra)
-library(raster)
 library(leaflet)
 library(htmlwidgets)
 
@@ -969,25 +968,22 @@ saveRDS(final_df, 'data/extracted_modis_data/modis_1_12.rds')
 
 #-------------------------------------------------------------------------------
 
-df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
-summary(df[df$Metadata.MeasurementMode == 1 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]$target_modis_sif)
+df <- read_csv('data/extracted_modis_data/modis_2_7_bin_uncertainity_corrected_M0QF0_gt0_6area_cnn.csv')
 
-final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+final_df <- df[df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+
+#final_df <- df[df$Metadata.MeasurementMode == 0 & df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
 final_df <- final_df[lubridate::month(final_df$Delta_Date) %in% 2:7,]
-summary(final_df$sif_area_km2_evi)
 
-inc <- 0.10
-
+inc <- 0.25
 sif_breaks <- seq(
-  floor(min(final_df$sif_area_km2_evi, na.rm = TRUE) / inc) * inc,
-  ceiling(max(final_df$sif_area_km2_evi, na.rm = TRUE) / inc) * inc,
+  floor(min(final_df$target_modis_sif, na.rm = TRUE) / inc) * inc,
+  ceiling(max(final_df$target_modis_sif, na.rm = TRUE) / inc) * inc,
   by = inc
 )
-
 df_binned <- final_df %>%
-  mutate(area_bin = cut(sif_area_km2_evi, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)) %>%
+  mutate(area_bin = cut(target_modis_sif, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)) %>%
   select(area_bin)
-
 table(df_binned$area_bin)
 
 
@@ -1037,3 +1033,236 @@ low_crop_pct_map <- leaflet::leaflet(options = leaflet::leafletOptions(preferCan
 low_crop_pct_map <- leaflet::fitBounds(low_crop_pct_map, lng1 = low_crop_pct_bbox[["xmin"]], lat1 = low_crop_pct_bbox[["ymin"]], lng2 = low_crop_pct_bbox[["xmax"]], lat2 = low_crop_pct_bbox[["ymax"]])
 
 low_crop_pct_map
+
+#-------------------------------------------------------------------------------
+# Plot sif polygons only in the respective mgrs tiles
+
+df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
+#final_df <- df[df$Metadata.MeasurementMode == 0,]
+final_df <- df[df$final_check_modis_sif == 'accept' & df$Quality_Flag == 0,]
+final_df <- final_df[lubridate::month(final_df$Delta_Date) %in% 2:7,]
+
+mgrs_tif_paths <- list.files("data/temp_data/mgrs_tifs", pattern = "\\.tif$", full.names = TRUE)
+
+mgrs_tile_bboxes <- mgrs_tif_paths %>%
+  map(function(tif_path) {
+    tif_rast <- terra::rast(tif_path)
+    tif_ext <- unname(as.vector(terra::ext(tif_rast)))
+    tif_bbox <- st_bbox(c(xmin = tif_ext[1], ymin = tif_ext[3], xmax = tif_ext[2], ymax = tif_ext[4]), crs = st_crs(terra::crs(tif_rast)))
+    st_sf(mgrs_tile = stringr::str_extract(basename(tif_path), "T[0-9]{2}[A-Z]{3}"), tif_file = basename(tif_path), geometry = st_as_sfc(tif_bbox)) %>%
+      st_transform(4326)
+  }) %>%
+  bind_rows() %>%
+  st_make_valid()
+
+mgrs_tile_labels <- mgrs_tile_bboxes %>%
+  st_transform(centroid_crs) %>%
+  st_centroid() %>%
+  st_transform(4326)
+
+sif_mgrs_polygons <- final_df %>%
+  mutate(source_row = row_number(), target_modis_sif = as.numeric(target_modis_sif), across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric)) %>%
+  filter(!is.na(target_modis_sif), if_all(all_of(corner_cols), ~ !is.na(.x))) %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+sif_mgrs_centroids <- sif_mgrs_polygons %>%
+  st_transform(centroid_crs) %>%
+  st_centroid() %>%
+  st_transform(4326)
+
+sif_mgrs_centroids_in_tiles <- sif_mgrs_centroids %>%
+  st_join(mgrs_tile_bboxes %>% dplyr::select(mgrs_tile), join = st_within, left = FALSE) %>%
+  arrange(source_row, mgrs_tile) %>%
+  distinct(source_row, .keep_all = TRUE)
+
+# sif_mgrs_centroids_in_tiles %>%
+#   st_drop_geometry() %>%
+#   count(source_row, name = "n_tiles") %>%
+#   filter(n_tiles > 1)
+
+saveRDS(sif_mgrs_centroids_in_tiles, 'data/9tiles_2_7.rds')
+
+sif_mgrs_centroids_in_tiles <- sif_mgrs_centroids_in_tiles[sif_mgrs_centroids_in_tiles$Metadata.MeasurementMode == 0,]
+
+saveRDS(sif_mgrs_centroids_in_tiles, 'data/9tiles_M0_2_7.rds')
+
+germany_states_mgrs <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, resolution = "01", epsg = 4326) %>%
+  dplyr::select(state = NUTS_NAME, geometry) %>%
+  st_make_valid()
+
+mgrs_sif_centroids_plot <- ggplot() +
+  geom_sf(data = germany_states_mgrs, fill = "grey95", color = "grey55", linewidth = 0.25) +
+  geom_sf(data = mgrs_tile_bboxes, fill = NA, color = "black", linewidth = 0.7) +
+  geom_sf_text(data = mgrs_tile_labels, aes(label = mgrs_tile), size = 3, color = "black") +
+  geom_sf(data = sif_mgrs_centroids_in_tiles, aes(color = target_modis_sif), size = 0.35, alpha = 0.7) +
+  scale_color_viridis_c(name = "target_modis_sif") +
+  labs(title = "SIF centroids inside selected MGRS tile bounding boxes", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(panel.grid.major = element_line(linewidth = 0.15, color = "grey85"), legend.position = "right")
+
+print(mgrs_sif_centroids_plot)
+
+
+#-------------------------------------------------------------------------------
+# Get temporal ranges for each tile-year-month combo
+
+geodes_root <- "data/geodes_wasp_zips"
+sentinel_product_pattern <- "^SENTINEL2[A-Z]_\\d{8}-000000-000_L3A_T\\d{2}[A-Z]{3}_C_V[0-9]-[0-9]$"
+dts_workers <- 2
+
+dts_product_index <- list.dirs(geodes_root, recursive = TRUE, full.names = TRUE) %>%
+  keep(~ stringr::str_detect(basename(.x), sentinel_product_pattern)) %>%
+  tibble(product_path = .) %>%
+  mutate(product_id = basename(product_path),
+         mgrs_tile = stringr::str_remove(stringr::str_extract(product_id, "T\\d{2}[A-Z]{3}"), "^T"),
+         product_date = as.Date(stringr::str_extract(product_id, "\\d{8}"), format = "%Y%m%d"),
+         product_year = lubridate::year(product_date),
+         product_month = lubridate::month(product_date),
+         product_version = stringr::str_extract(product_id, "V[0-9]-[0-9]$"),
+         dts_r1_path = map_chr(product_path, ~ list.files(file.path(.x, "MASKS"), pattern = "DTS_R1\\.tif$", full.names = TRUE)[1])) %>%
+  filter(!is.na(dts_r1_path))
+
+summarise_dts_r1 <- function(dts_r1_path) {
+  r <- terra::rast(dts_r1_path)
+  terra::global(r, fun = function(x, ...) {
+    c(
+      min = min(x, na.rm = TRUE),
+      q10 = as.numeric(stats::quantile(x, 0.1, na.rm = TRUE, names = FALSE)),
+      median = median(x, na.rm = TRUE),
+      max = max(x, na.rm = TRUE)
+    )
+  }) %>%
+    as_tibble(rownames = "raster_layer")
+}
+
+dts_old_plan <- future::plan()
+future::plan(future::multisession, workers = dts_workers)
+
+progressr::handlers(global = TRUE)
+
+dts_temporal_ranges <- progressr::with_progress({
+  p <- progressr::progressor(along = dts_product_index$dts_r1_path)
+  dts_product_index %>%
+    mutate(dts_summary = furrr::future_map2(dts_r1_path, product_id, function(path, id) {
+      result <- summarise_dts_r1(path)
+      p(sprintf("done %s", id))
+      result
+    }, .options = furrr::furrr_options(seed = FALSE))) %>%
+    unnest(dts_summary) %>%
+    arrange(mgrs_tile, product_year, product_month)
+})
+
+future::plan(dts_old_plan)
+
+
+
+dts_temporal_ranges[dts_temporal_ranges$min == -10000,]$min <- 0
+dts_temporal_ranges[dts_temporal_ranges$q10 == -10000,]$q10 <- 0
+dts_temporal_ranges[dts_temporal_ranges$median == -10000,]$median <- 0
+
+write_csv(dts_temporal_ranges, "data/geodes_wasp_zips/dts_r1_temporal_ranges.csv")
+saveRDS(dts_temporal_ranges, "data/geodes_wasp_zips/dts_r1_temporal_ranges.rds")
+
+#-------------------------------------------------------------------------------
+
+r <- rast('data/geodes_wasp_zips/32UNC/2020/SENTINEL2A_20200215-000000-000_L3A_T32UNC_C_V4-0/MASKS/SENTINEL2A_20200215-000000-000_L3A_T32UNC_C_V4-0_DTS_R1.tif')
+
+#b4 <- rast('data/geodes_wasp_zips/32ULA/2023/SENTINEL2X_20230415-000000-000_L3A_T32ULA_C_V4-0/SENTINEL2X_20230415-000000-000_L3A_T32ULA_C_V4-0_FRC_B4.tif')
+#b8 <- rast('data/geodes_wasp_zips/32ULA/2023/SENTINEL2X_20230415-000000-000_L3A_T32ULA_C_V4-0/SENTINEL2X_20230415-000000-000_L3A_T32ULA_C_V4-0_FRC_B8.tif')
+
+#ndvi <- (b8-b4)/(b8+b4)
+
+plot(ndvi)
+
+r[r == -10000] <- 0
+global(r, fun = function(x, ...) {
+  c(
+    min = min(x, na.rm = TRUE),
+    q35 = quantile(x, 0.35, na.rm = TRUE),
+    median = median(x, na.rm = TRUE),
+    max = max(x, na.rm = TRUE)
+  )
+})
+
+plot(r)
+
+#-------------------------------------------------------------------------------
+# convert days since start of year to date
+
+dts_temporal_ranges <- readRDS("data/geodes_wasp_zips/dts_r1_temporal_ranges.rds")
+
+dts_temporal_ranges <- dts_temporal_ranges %>%
+  mutate(min_days = case_when(min != 0 ~ min, q10 != 0 ~ q10, median != 0 ~ median, TRUE ~ NA_real_),
+         max_days = max,
+         year_start = as.Date(paste0(product_year, "-01-01")),
+         temporal_low = year_start + min_days,
+         temporal_high = year_start + max_days) %>%
+  dplyr::select(-year_start)
+
+dts_temporal_ranges %>% select(c(mgrs_tile, product_date, min_days, max_days, temporal_low, temporal_high))
+
+write_csv(dts_temporal_ranges, "data/geodes_wasp_zips/dts_r1_temporal_ranges_dates.csv")
+saveRDS(dts_temporal_ranges, "data/geodes_wasp_zips/dts_r1_temporal_ranges_dates.rds")
+
+#-------------------------------------------------------------------------------
+# assign inrange/outrange to sif row based year-month match with product_date and 
+# whether it falls within 
+
+sif <- readRDS('data/9tiles_2_7.rds')
+dts_temporal_ranges <- readRDS("data/geodes_wasp_zips/dts_r1_temporal_ranges_dates.rds")
+dts_temporal_ranges[117,]$min_days <- 37
+dts_temporal_ranges[117,]$temporal_low  <- as.Date('2020-02-07')
+
+sif_date_aligned <- sif %>%
+  mutate(sif_date = as.Date(Delta_Date), sif_year = lubridate::year(sif_date), sif_month = lubridate::month(sif_date)) %>%
+  left_join(dts_temporal_ranges %>% dplyr::select(product_path, mgrs_tile, product_year, product_month, product_date, temporal_low, temporal_high, min_days, max_days), by = c("mgrs_tile" = "mgrs_tile", "sif_year" = "product_year", "sif_month" = "product_month")) %>%
+  mutate(date_align = case_when(is.na(product_date) ~ "no_product", sif_date >= temporal_low & sif_date <= temporal_high ~ "inrange", TRUE ~ "outrange"))
+
+sif_date_aligned <- sif_date_aligned %>% filter(date_align == 'inrange')
+
+table(sif_date_aligned$Metadata.MeasurementMode)
+
+saveRDS(sif_date_aligned, 'data/9tiles_2_7_inrange_M01.rds')
+
+sif_date_aligned <- sif_date_aligned[sif_date_aligned$Metadata.MeasurementMode == 0,]
+
+saveRDS(sif_date_aligned, 'data/9tiles_2_7_inrange_M0.rds')
+
+sort(colSums(is.na(sif_date_aligned)))
+
+
+#-------------------------------------------------------------------------------
+
+df <- readRDS('data/9tiles_2_7_inrange_M01.rds')
+table(df$Metadata.MeasurementMode)
+df %>%
+  st_drop_geometry() %>%
+  distinct(Delta_Date, Metadata.MeasurementMode) %>%
+  count(Delta_Date, name = "n_modes") %>%
+  filter(n_modes > 1)
+
+df %>%
+  st_drop_geometry() %>%
+  distinct(mgrs_tile, Delta_Date, Metadata.MeasurementMode) %>%
+  count(mgrs_tile, Delta_Date, name = "n_modes") %>%
+  filter(n_modes > 1)
+
+summary(df[df$Metadata.MeasurementMode == 0,]$sif_area_km2_evi)
+summary(df[df$Metadata.MeasurementMode == 1,]$sif_area_km2_evi)
+summary(df[df$ww_pct >= 0.5 & lubridate::month(df$Delta_Date) == 2,]$target_modis_sif)
+
+df %>%
+  st_drop_geometry() %>%
+  filter(ww_pct >= 0.5) %>%
+  mutate(doy = lubridate::yday(Delta_Date),
+         doy_bin = 8 * floor((doy - 1) / 8) + 1) %>%
+  group_by(doy_bin) %>%
+  summarise(n = n(),mean_sif = mean(target_modis_sif, na.rm = TRUE),median_sif = median(target_modis_sif, na.rm = TRUE),.groups = "drop") %>%
+  print(n=100)
+
+df <- df %>% select(c(target_modis_sif, Delta_Date))
+df <- df %>% st_drop_geometry()
+
+write_csv(df, 'data/sif_dates.csv')

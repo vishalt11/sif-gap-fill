@@ -84,6 +84,8 @@ final_df <- final_df %>%
 table(final_df$neg_status_modis_sif)
 summary(final_df[final_df$neg_status_modis_sif == 'accept',]$target_modis_sif)
 
+final_df <- final_df[final_df$final_check_modis_sif == 'accept' & final_df$Quality_Flag == 0,]
+
 sif_breaks <- seq(floor(min(final_df$target_modis_sif, na.rm = TRUE) / 0.25) * 0.25,
                   ceiling(max(final_df$target_modis_sif, na.rm = TRUE) / 0.25) * 0.25,
                   by = 0.25)
