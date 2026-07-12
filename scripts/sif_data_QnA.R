@@ -1266,3 +1266,173 @@ df <- df %>% select(c(target_modis_sif, Delta_Date))
 df <- df %>% st_drop_geometry()
 
 write_csv(df, 'data/sif_dates.csv')
+
+
+#-------------------------------------------------------------------------------
+
+df <- readRDS('data/9tiles_2_7_inrange_M01.rds')
+
+colnames(df)
+
+df <- df %>% select(Daily_SIF_757nm, Daily_SIF_771nm, target_modis_sif,
+                    final_check_757, final_check_771, final_check_modis_sif,
+                    Latitude, Longitude, Delta_Time, Delta_Date, sif_doy,
+                    Lat_corner1, Lat_corner2, Lat_corner3, Lat_corner4,
+                    Lon_corner1, Lon_corner2, Lon_corner3, Lon_corner4,
+                    sif_area_km2_evi, Metadata.MeasurementMode, 
+                    state, hzs, mgrs_tile, product_path, 
+                    SZA, VZA, VAz, SAz)
+
+
+df[is.na(df$hzs),]$hzs <- '8b'
+
+deg_to_rad <- pi / 180
+rad_to_deg <- 180 / pi
+
+df <- df %>%
+  mutate(
+    # Relative azimuth wrapped to [-180, 180] degrees
+    relative_azimuth = ((SAz - VAz + 180) %% 360) - 180,
+    
+    # Cosine of the angle between surface-to-Sun and
+    # surface-to-sensor vectors
+    phase_cos = (
+      cos(SZA * deg_to_rad) * cos(VZA * deg_to_rad) +
+        sin(SZA * deg_to_rad) * sin(VZA * deg_to_rad) *
+        cos(relative_azimuth * deg_to_rad)
+    ),
+    
+    # Clamp for floating-point safety, then convert to degrees
+    phase_angle = acos(pmax(-1, pmin(1, phase_cos))) * rad_to_deg
+  )
+
+df <- df %>%
+  mutate(
+    signed_phase_angle = if_else(
+      relative_azimuth < 0,
+      -phase_angle,
+      phase_angle
+    )
+  )
+
+head(df,1)
+
+#2022-07-29
+#2022-07-31
+#2024-07-13
+#2024-07-15
+#2024-07-29
+
+#remove sif rows that dont have PAR data
+dates_to_remove <- as.Date(c(
+  "2022-07-29",
+  "2022-07-31",
+  "2024-07-13",
+  "2024-07-15",
+  "2024-07-29"
+))
+
+df <- df |>
+  dplyr::filter(!Delta_Date %in% dates_to_remove)
+
+saveRDS(df, 'data/9tiles_2_7_inrange_M01_cnn.rds')
+
+df %>%
+  st_drop_geometry() %>%
+  write_csv('data/9tiles_2_7_inrange_M01_cnn.csv')
+
+# sensor angle checks
+# nadir_phase_check <- df %>%
+#   filter(Metadata.MeasurementMode == 0) %>%
+#   mutate(
+#     relative_azimuth = ((SAz - VAz + 180) %% 360) - 180,
+#     
+#     phase_cos =
+#       cos(SZA * pi / 180) * cos(VZA * pi / 180) +
+#       sin(SZA * pi / 180) * sin(VZA * pi / 180) *
+#       cos(relative_azimuth * pi / 180),
+#     
+#     phase_angle =
+#       acos(pmax(-1, pmin(1, phase_cos))) * 180 / pi,
+#     
+#     phase_minus_sza = phase_angle - SZA,
+#     absolute_difference = abs(phase_minus_sza)
+#   )
+# 
+# summary(nadir_phase_check$phase_angle)
+# summary(nadir_phase_check$phase_minus_sza)
+# summary(nadir_phase_check$absolute_difference)
+# 
+# max(nadir_phase_check$absolute_difference, na.rm = TRUE)
+# max(nadir_phase_check$VZA, na.rm = TRUE)
+
+# Your values are also all well above the paper’s \(20^\circ\) region where the strongest hotspot/geometry effects occur. 
+# Therefore, you do not have low-phase-angle hotspot observations in this nadir subset.
+
+#-------------------------------------------------------------------------------
+# plot 2022-05-07 phase angle and sif (compare angle shifts vs sif changes for same land composition)
+
+df_1track <- df %>% filter(Delta_Date == as.Date('2022-05-07'))
+
+df_1track_polygons <- df_1track %>%
+  st_drop_geometry() %>%
+  mutate(across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric),
+         track_label = paste0("date=", Delta_Date, " | SIF=", round(target_modis_sif, 3), " | phase=", round(phase_angle, 2), " deg"),
+         geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+track_bbox <- st_bbox(df_1track_polygons)
+
+track_sif_pal <- leaflet::colorNumeric(palette = "viridis", domain = df_1track_polygons$target_modis_sif, na.color = "transparent")
+
+track_sif_leaflet <- leaflet::leaflet(data = df_1track_polygons, options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
+  leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Esri World Imagery") %>%
+  leaflet::addPolygons(color = ~track_sif_pal(target_modis_sif), fillColor = ~track_sif_pal(target_modis_sif), fillOpacity = 0.75, opacity = 1, weight = 0.8, label = ~track_label, group = "SIF polygons") %>%
+  leaflet::addLegend(position = "bottomright", pal = track_sif_pal, values = df_1track_polygons$target_modis_sif, title = "target_modis_sif", opacity = 0.85)
+
+track_sif_leaflet <- leaflet::fitBounds(track_sif_leaflet, lng1 = track_bbox[["xmin"]], lat1 = track_bbox[["ymin"]], lng2 = track_bbox[["xmax"]], lat2 = track_bbox[["ymax"]])
+
+track_phase_pal <- leaflet::colorNumeric(palette = "viridis", domain = df_1track_polygons$phase_angle, na.color = "transparent")
+
+track_phase_leaflet <- leaflet::leaflet(data = df_1track_polygons, options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
+  leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Esri World Imagery") %>%
+  leaflet::addPolygons(color = ~track_phase_pal(phase_angle), fillColor = ~track_phase_pal(phase_angle), fillOpacity = 0.75, opacity = 1, weight = 0.8, label = ~track_label, group = "Phase angle polygons") %>%
+  leaflet::addLegend(position = "bottomright", pal = track_phase_pal, values = df_1track_polygons$phase_angle, title = "phase_angle", opacity = 0.85)
+
+track_phase_leaflet <- leaflet::fitBounds(track_phase_leaflet, lng1 = track_bbox[["xmin"]], lat1 = track_bbox[["ymin"]], lng2 = track_bbox[["xmax"]], lat2 = track_bbox[["ymax"]])
+
+htmlwidgets::saveWidget(track_sif_leaflet, file = "eda_images/track_2022_05_07_target_modis_sif.html", selfcontained = FALSE)
+htmlwidgets::saveWidget(track_phase_leaflet, file = "eda_images/track_2022_05_07_phase_angle.html", selfcontained = FALSE)
+
+track_sif_leaflet
+track_phase_leaflet
+
+#-------------------------------------------------------------------------------
+
+r <- rast('data/viirs_vnp18a2_daily_mean_par_germany_native/2023/VNP18A2.002_2023-04-10_Daily_Mean_PAR_VIIRS_Sinusoidal_native.tif')
+r_check <- rast('data/viirs_vnp18a2_daily_mean_par_germany_native/2023/VNP18A2.002_2023-04-10_PAR_Quality_VIIRS_Sinusoidal_native.tif')
+
+plot(r)
+
+res(r)
+crs(r)
+res(r_check)
+crs(r_check)
+
+unique(r_check)
+
+global(r_check, fun = function(x, ...) {
+  c(
+    min = min(x, na.rm = TRUE),
+    q35 = quantile(x, 0.35, na.rm = TRUE),
+    median = median(x, na.rm = TRUE),
+    max = max(x, na.rm = TRUE)
+  )
+})
+
+plot(r_check)
+res(r)
+crs(r)
+res(r_check)
+crs(r_check)

@@ -23,7 +23,7 @@ library(htmlwidgets)
 
 sf::sf_use_s2(FALSE)
 
-input_rds <- "data/9tiles_2_7_inrange_M01.rds"
+input_rds <- "data/9tiles_2_7_inrange_M01_cnn.rds"
 mgrs_tif_dir <- "data/temp_data/mgrs_tifs"
 output_dir <- "data/sentinel2_multisif_chip_diagnostics"
 
@@ -562,7 +562,7 @@ assignment_export_cols <- c(
   "centroid_x", "centroid_y", "track_score",
   target_cols,
   final_check_cols,
-  "Latitude", "Longitude",
+  "Latitude", "Longitude","product_path",
   corner_cols,
   "state", "hzs", "Quality_Flag", "Metadata.MeasurementMode", "source_file"
 )
@@ -651,7 +651,7 @@ python_chip_assignments %>%
 # ---------------------------------------------------------------------------
 # Leaflet preview for one Sentinel tile/status
 
-leaflet_tile <- "T32UPE"
+leaflet_tile <- "T32UPC"
 leaflet_chip_status <- "edge_flag"
 
 message(
