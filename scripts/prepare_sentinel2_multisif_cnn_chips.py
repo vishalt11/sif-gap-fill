@@ -54,7 +54,8 @@ PAR_DIR = Path("data/viirs_vnp18a2_daily_mean_par_germany_native")
 CROP_DIR = Path("data/crop_type_tif")
 
 OUTPUT_DIR = Path(
-    "data/cnn_sentinel2_chips/multisif_6km_20m_indices_fapar_active_crop"
+    "data/cnn_sentinel2_chips/"
+    "multisif_6km_20m_indices_fapar_active_crop_evi_masked"
 )
 
 TARGET_COLUMN = "target_modis_sif"
@@ -86,6 +87,10 @@ REFLECTANCE_NODATA = -10000
 LAND_FLAG_VALUE = 4
 NON_CROP_CODE = 0
 WARP_NODATA = -9999.0
+
+EVI_VALID_MIN = -1.0
+EVI_VALID_MAX = 1.0
+EVI_DENOMINATOR_EPS = 1e-6
 
 PAR_VALID_MIN = 0.0
 PAR_VALID_MAX = 700.0
@@ -270,6 +275,40 @@ def normalized_difference(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     output = np.full(a.shape, np.nan, dtype=np.float32)
     valid = np.isfinite(a) & np.isfinite(b) & (np.abs(denominator) > 1e-6)
     output[valid] = (a[valid] - b[valid]) / denominator[valid]
+    return output
+
+
+def enhanced_vegetation_index(
+    nir: np.ndarray,
+    red: np.ndarray,
+    blue: np.ndarray,
+) -> np.ndarray:
+    """Calculate EVI and mask numerical singularities as missing data."""
+    nir64 = np.asarray(nir, dtype=np.float64)
+    red64 = np.asarray(red, dtype=np.float64)
+    blue64 = np.asarray(blue, dtype=np.float64)
+    denominator = nir64 + 6.0 * red64 - 7.5 * blue64 + 1.0
+
+    finite_inputs = np.isfinite(nir64) & np.isfinite(red64) & np.isfinite(blue64)
+    numerically_valid = finite_inputs & (
+        np.abs(denominator) > EVI_DENOMINATOR_EPS
+    )
+    candidate = np.full(nir64.shape, np.nan, dtype=np.float64)
+    np.divide(
+        2.5 * (nir64 - red64),
+        denominator,
+        out=candidate,
+        where=numerically_valid,
+    )
+
+    physically_valid = (
+        numerically_valid
+        & np.isfinite(candidate)
+        & (candidate >= EVI_VALID_MIN)
+        & (candidate <= EVI_VALID_MAX)
+    )
+    output = np.full(nir64.shape, np.nan, dtype=np.float32)
+    output[physically_valid] = candidate[physically_valid].astype(np.float32)
     return output
 
 
@@ -593,17 +632,8 @@ def sentinel_indices_chip(
     ndmi = normalized_difference(bands["B8"], bands["B11"])
     ndvi = normalized_difference(bands["B8"], bands["B4"])
 
-    evi_denominator = bands["B8"] + 6.0 * bands["B4"] - 7.5 * bands["B2"] + 1.0
-    evi = np.full((CHIP_SIZE, CHIP_SIZE), np.nan, dtype=np.float32)
-    evi_valid = (
-        np.isfinite(bands["B8"])
-        & np.isfinite(bands["B4"])
-        & np.isfinite(bands["B2"])
-        & (np.abs(evi_denominator) > 1e-6)
-    )
-    evi[evi_valid] = 2.5 * (
-        (bands["B8"][evi_valid] - bands["B4"][evi_valid])
-        / evi_denominator[evi_valid]
+    evi = enhanced_vegetation_index(
+        bands["B8"], bands["B4"], bands["B2"]
     )
 
     nirv = bands["B8"] * ndvi
@@ -1376,6 +1406,8 @@ def prepare_chips() -> None:
         "mask_storage_dtype": "float16",
         "target_storage_dtype": "float32",
         "predictor_nan_policy": "preserve; normalize with nan-aware stats then fill with 0",
+        "evi_valid_range": [EVI_VALID_MIN, EVI_VALID_MAX],
+        "evi_invalid_policy": "mask as NaN; do not clip",
         "par_units": "W/m2",
         "par_valid_range": [PAR_VALID_MIN, PAR_VALID_MAX],
         "par_accepted_qa_codes": list(PAR_ACCEPTED_QA_CODES),

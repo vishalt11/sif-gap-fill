@@ -16,9 +16,12 @@ library(htmlwidgets)
 
 sf::sf_use_s2(FALSE)
 
-input_csv <- "data/9tiles_2_7_inrange_M01_cnn.csv"
+#input_csv <- "data/9tiles_2_7_inrange_M01_cnn.csv"
+input_csv <- "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv"
 mgrs_tif_dir <- "data/temp_data/mgrs_tifs"
-output_dir <- "data/sentinel2_spatial_aggregation_4000m_original_tiles"
+#output_dir <- "data/sentinel2_spatial_aggregation_4000m_original_tiles"
+
+output_dir <- "data/sentinel2_spatial_aggregation_4000m_original_tiles_inout"
 
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -203,7 +206,7 @@ df <- read_csv(
 
 required_cols <- c(
   "Delta_Date", "Metadata.MeasurementMode", "target_modis_sif",
-  "mgrs_tile", "product_path", corner_cols
+  "Quality_Flag", "date_align", "mgrs_tile", "product_path", corner_cols
 )
 missing_cols <- setdiff(required_cols, names(df))
 if (length(missing_cols) > 0) {
@@ -221,6 +224,10 @@ df_prepared <- df %>%
     sif_month = month(Delta_Date),
     sif_doy = yday(Delta_Date),
     measurement_mode = as.integer(.data[["Metadata.MeasurementMode"]]),
+    Quality_Flag = as.integer(Quality_Flag),
+    date_align = stringr::str_to_lower(
+      stringr::str_trim(as.character(date_align))
+    ),
     target_modis_sif = as.numeric(target_modis_sif),
     mgrs_tile_original = stringr::str_remove(
       normalize_mgrs_tile(mgrs_tile),
@@ -242,6 +249,9 @@ df_prepared <- df %>%
   filter(
     !is.na(Delta_Date),
     !is.na(measurement_mode),
+    !is.na(Quality_Flag),
+    !is.na(date_align),
+    date_align != "",
     is.finite(target_modis_sif),
     if_all(all_of(corner_cols), ~ is.finite(.x))
   )
@@ -370,7 +380,8 @@ write_csv(
 
 optional_assignment_cols <- c(
   "Daily_SIF_757nm", "Daily_SIF_771nm", "final_check_modis_sif",
-  "sif_area_km2_evi", "state", "hzs", "Latitude", "Longitude"
+  "sif_area_km2_evi", "state", "hzs", "Latitude", "Longitude",
+  "Quality_Flag", "date_align"
 )
 
 fixed_grid_assignments <- all_assignments %>%
@@ -489,6 +500,14 @@ fixed_grid_manifest <- fixed_grid_assignments %>%
     total_sif_area_km2 = sum(sif_area_km2_evi, na.rm = TRUE),
     states = collapse_values(state),
     hzs_values = collapse_values(hzs),
+    quality_flag_values = collapse_values(Quality_Flag),
+    n_quality_flag_0 = sum(Quality_Flag == 0L),
+    n_quality_flag_1 = sum(Quality_Flag == 1L),
+    quality_flag_1_fraction = mean(Quality_Flag == 1L),
+    date_align_values = collapse_values(date_align),
+    n_date_inrange = sum(date_align == "inrange"),
+    n_date_outrange = sum(date_align == "outrange"),
+    date_outrange_fraction = mean(date_align == "outrange"),
     n_sentinel_source_tiles = n_distinct(
       sentinel_source_tile_t,
       na.rm = TRUE

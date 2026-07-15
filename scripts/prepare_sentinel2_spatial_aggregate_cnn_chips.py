@@ -38,13 +38,13 @@ import prepare_sentinel2_multisif_cnn_chips as sentinel
 # ---------------------------------------------------------------------------
 # Config
 
-AGGREGATION_DIR = Path("data/sentinel2_spatial_aggregation_4000m_original_tiles")
+AGGREGATION_DIR = Path("data/sentinel2_spatial_aggregation_4000m_original_tiles_inout")
 MANIFEST_PATH = AGGREGATION_DIR / "fixed_grid_4000m_aggregate_manifest.csv"
 ASSIGNMENTS_PATH = AGGREGATION_DIR / "fixed_grid_4000m_sif_assignments.csv"
 
 OUTPUT_DIR = Path(
     "data/cnn_sentinel2_chips/"
-    "spatial_aggregate_4km_20m_indices_fapar_par_apar_active_crop"
+    "spatial_aggregate_4km_20m_indices_updated_inout_evi_masked"
 )
 
 TARGET_COLUMN = "target_modis_sif"
@@ -65,7 +65,7 @@ MAX_CHIPS: int | None = None
 
 # Keep at 1 initially. Increasing this can cause heavy contention on the large
 # Sentinel-2 products even when more CPU cores are available.
-N_WORKERS = 1
+N_WORKERS = 4
 
 # Fail instead of mixing shards from separate runs in the same directory.
 FAIL_IF_OUTPUT_EXISTS = True
@@ -135,6 +135,8 @@ def load_aggregation_tables() -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
             "sif_month",
             "sif_doy",
             "measurement_mode",
+            "Quality_Flag",
+            "date_align",
             "mgrs_tile_t",
             "product_path",
             TARGET_COLUMN,
@@ -180,6 +182,7 @@ def load_aggregation_tables() -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
         "sif_month",
         "sif_doy",
         "measurement_mode",
+        "Quality_Flag",
         TARGET_COLUMN,
         "Lat_corner1",
         "Lat_corner2",
@@ -194,6 +197,27 @@ def load_aggregation_tables() -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
         manifest[column] = pd.to_numeric(manifest[column], errors="raise")
     for column in assignment_numeric:
         assignments[column] = pd.to_numeric(assignments[column], errors="raise")
+
+    assignments["date_align"] = (
+        assignments["date_align"].astype(str).str.strip().str.lower()
+    )
+    invalid_quality_flags = sorted(
+        set(assignments["Quality_Flag"].astype(int)) - {0, 1}
+    )
+    if invalid_quality_flags:
+        raise ValueError(
+            "Unexpected Quality_Flag values in SIF assignments: "
+            f"{invalid_quality_flags}"
+        )
+
+    invalid_date_align = sorted(
+        set(assignments["date_align"]) - {"inrange", "outrange"}
+    )
+    if invalid_date_align:
+        raise ValueError(
+            "Unexpected date_align values in SIF assignments: "
+            f"{invalid_date_align}"
+        )
 
     manifest = manifest[
         parse_bool(manifest["eligible_n5"])
@@ -244,6 +268,7 @@ def load_aggregation_tables() -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
             "mgrs_tile_t",
             "measurement_mode",
             "product_path",
+            "date_align",
         ]
         invalid = {
             column: int(group[column].nunique(dropna=False))
@@ -347,6 +372,8 @@ def build_aggregate_weight_map(
                 "mask_inside_fraction": inside_fraction,
                 "Delta_Date": footprint["Delta_Date"],
                 "measurement_mode": int(footprint["measurement_mode"]),
+                "quality_flag": int(footprint["Quality_Flag"]),
+                "date_align": str(footprint["date_align"]),
                 "mgrs_tile_t": footprint["mgrs_tile_t"],
                 "state": footprint.get("state", ""),
                 "hzs": footprint.get("hzs", ""),
@@ -424,6 +451,14 @@ def build_sample(
             f"Target changed while building {manifest_row['aggregation_id']}"
         )
 
+    quality_flags = footprints["Quality_Flag"].astype(int)
+    quality_flag_values = ";".join(
+        str(value) for value in sorted(quality_flags.unique().tolist())
+    )
+    n_quality_flag_0 = int((quality_flags == 0).sum())
+    n_quality_flag_1 = int((quality_flags == 1).sum())
+    date_align = str(footprints.iloc[0]["date_align"])
+
     metadata = {
         "aggregation_id": manifest_row["aggregation_id"],
         "cell_id": manifest_row["cell_id"],
@@ -432,6 +467,11 @@ def build_sample(
         "sif_month": int(manifest_row["sif_month"]),
         "sif_doy": int(manifest_row["sif_doy"]),
         "measurement_mode": int(manifest_row["measurement_mode"]),
+        "date_align": date_align,
+        "quality_flag_values": quality_flag_values,
+        "n_quality_flag_0": n_quality_flag_0,
+        "n_quality_flag_1": n_quality_flag_1,
+        "quality_flag_1_fraction": n_quality_flag_1 / len(footprints),
         "mgrs_tile_t": manifest_row["mgrs_tile_t"],
         "product_path": str(product_path),
         "fapar_composite_doy": int(fapar_doy),
@@ -670,6 +710,8 @@ def prepare_chips() -> None:
             "preserve; compute nan-aware training statistics, normalize, then fill "
             "normalized NaNs with zero"
         ),
+        "evi_valid_range": [sentinel.EVI_VALID_MIN, sentinel.EVI_VALID_MAX],
+        "evi_invalid_policy": "mask as NaN; do not clip",
         "par_units": "W/m2",
         "par_accepted_qa_codes": list(sentinel.PAR_ACCEPTED_QA_CODES),
         "par_resampling": "bilinear after native-grid QA masking",
@@ -678,6 +720,16 @@ def prepare_chips() -> None:
             "split by whole Delta_Date before training; reserve untouched dates "
             "for native-footprint evaluation"
         ),
+        "metadata_fields": {
+            "footprint": ["quality_flag", "date_align"],
+            "chip": [
+                "date_align",
+                "quality_flag_values",
+                "n_quality_flag_0",
+                "n_quality_flag_1",
+                "quality_flag_1_fraction",
+            ],
+        },
         "channel_reader_module": "prepare_sentinel2_multisif_cnn_chips.py",
     }
     with (OUTPUT_DIR / "dataset_config.json").open("w", encoding="ascii") as file:

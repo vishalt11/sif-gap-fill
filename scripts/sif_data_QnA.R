@@ -1436,3 +1436,88 @@ res(r)
 crs(r)
 res(r_check)
 crs(r_check)
+
+#-------------------------------------------------------------------------------
+df <- readRDS("data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange.rds")
+
+library(sf)
+library(tidyverse)
+library(leaflet)
+library(purrr)
+
+df <- df %>%
+  mutate(row_id = row_number(), Longitude = as.numeric(Longitude), Latitude = as.numeric(Latitude)) %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, remove = FALSE)
+
+df_3035 <- df %>%
+  st_transform(3035)
+
+missing_hzs_points <- df %>%
+  filter(is.na(hzs))
+
+nearest_5_ids <- map_dfr(missing_hzs_points$row_id, function(id) {
+  target_point <- df_3035 %>%
+    filter(row_id == id)
+  
+  candidate_points <- df_3035 %>%
+    filter(row_id != id)
+  
+  tibble(
+    missing_row_id = id,
+    row_id = candidate_points$row_id,
+    distance_m = as.numeric(st_distance(candidate_points, target_point))
+  ) %>%
+    arrange(distance_m) %>%
+    slice_head(n = 5)
+})
+
+nearest_5 <- df %>%
+  inner_join(nearest_5_ids, by = "row_id")
+
+nearest_5 %>%
+  st_drop_geometry() %>%
+  select(missing_row_id, row_id, distance_m, Daily_SIF_757nm, Daily_SIF_771nm,
+         target_modis_sif, Delta_Date, Latitude, Longitude, state, hzs, mgrs_tile) %>%
+  arrange(missing_row_id, distance_m)
+
+missing_hzs_map <- leaflet() %>%
+  addProviderTiles(providers$Esri.WorldImagery) %>%
+  addCircleMarkers(data = nearest_5, radius = 5, color = "blue", fillColor = "blue",
+                   fillOpacity = 0.8, group = "nearest_5",
+                   label = ~paste0("nearest | missing_row_id=", missing_row_id,
+                                   " | row_id=", row_id,
+                                   " | d=", round(distance_m, 1), " m",
+                                   " | hzs=", hzs)) %>%
+  addCircleMarkers(data = missing_hzs_points, radius = 7, color = "red", fillColor = "red",
+                   fillOpacity = 1, group = "missing_hzs",
+                   label = ~paste0("missing hzs | row_id=", row_id,
+                                   " | SIF=", round(target_modis_sif, 3))) %>%
+  addLayersControl(overlayGroups = c("nearest_5", "missing_hzs"), options = layersControlOptions(collapsed = FALSE))
+
+missing_hzs_map
+
+#-------------------------------------------------------------------------------
+
+df <- read_csv('data/sentinel2_spatial_aggregation_4000m_original_tiles_inout/fixed_grid_4000m_aggregate_manifest.csv')
+sort(df$aggregated_target_modis_sif, decreasing = TRUE)
+
+temp <- df %>% filter(aggregated_target_modis_sif > 0.9)
+#-------------------------------------------------------------------------------
+
+b2 <- rast('data/geodes_wasp_zips/32ULA/2019/SENTINEL2B_20190215-000000-000_L3A_T32ULA_C_V4-0/SENTINEL2B_20190215-000000-000_L3A_T32ULA_C_V4-0_FRC_B2.tif')
+b4 <- rast('data/geodes_wasp_zips/32ULA/2019/SENTINEL2B_20190215-000000-000_L3A_T32ULA_C_V4-0/SENTINEL2B_20190215-000000-000_L3A_T32ULA_C_V4-0_FRC_B4.tif')
+b8 <- rast('data/geodes_wasp_zips/32ULA/2019/SENTINEL2B_20190215-000000-000_L3A_T32ULA_C_V4-0/SENTINEL2B_20190215-000000-000_L3A_T32ULA_C_V4-0_FRC_B8.tif')
+
+#r[r == -10000] <- 0
+global(b8, fun = function(x, ...) {
+  c(
+    min = min(x, na.rm = TRUE),
+    q35 = quantile(x, 0.35, na.rm = TRUE),
+    median = median(x, na.rm = TRUE),
+    max = max(x, na.rm = TRUE)
+  )
+})
+
+plot(b8)
+
+
