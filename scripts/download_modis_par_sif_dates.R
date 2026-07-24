@@ -20,7 +20,7 @@ library(httr2)
 # Configuration
 # -----------------------------------------------------------------------------
 
-date_csv <- "data/main_sif_data/sif_dates.csv"
+date_csv <- "data/main_sif_data/sif_dates_11tiles.csv"
 date_column <- "Delta_Date"
 output_dir <- "data/modis_par_mcd18a2_germany_1200utc"
 

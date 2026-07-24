@@ -1082,27 +1082,27 @@ sif_mgrs_centroids_in_tiles <- sif_mgrs_centroids %>%
 #   count(source_row, name = "n_tiles") %>%
 #   filter(n_tiles > 1)
 
-saveRDS(sif_mgrs_centroids_in_tiles, 'data/9tiles_2_7.rds')
+saveRDS(sif_mgrs_centroids_in_tiles, 'data/11tiles_2_7.rds')
 
-sif_mgrs_centroids_in_tiles <- sif_mgrs_centroids_in_tiles[sif_mgrs_centroids_in_tiles$Metadata.MeasurementMode == 0,]
+#sif_mgrs_centroids_in_tiles <- sif_mgrs_centroids_in_tiles[sif_mgrs_centroids_in_tiles$Metadata.MeasurementMode == 0,]
 
-saveRDS(sif_mgrs_centroids_in_tiles, 'data/9tiles_M0_2_7.rds')
+#saveRDS(sif_mgrs_centroids_in_tiles, 'data/9tiles_M0_2_7.rds')
 
-germany_states_mgrs <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, resolution = "01", epsg = 4326) %>%
-  dplyr::select(state = NUTS_NAME, geometry) %>%
-  st_make_valid()
-
-mgrs_sif_centroids_plot <- ggplot() +
-  geom_sf(data = germany_states_mgrs, fill = "grey95", color = "grey55", linewidth = 0.25) +
-  geom_sf(data = mgrs_tile_bboxes, fill = NA, color = "black", linewidth = 0.7) +
-  geom_sf_text(data = mgrs_tile_labels, aes(label = mgrs_tile), size = 3, color = "black") +
-  geom_sf(data = sif_mgrs_centroids_in_tiles, aes(color = target_modis_sif), size = 0.35, alpha = 0.7) +
-  scale_color_viridis_c(name = "target_modis_sif") +
-  labs(title = "SIF centroids inside selected MGRS tile bounding boxes", x = NULL, y = NULL) +
-  theme_minimal() +
-  theme(panel.grid.major = element_line(linewidth = 0.15, color = "grey85"), legend.position = "right")
-
-print(mgrs_sif_centroids_plot)
+# germany_states_mgrs <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, resolution = "01", epsg = 4326) %>%
+#   dplyr::select(state = NUTS_NAME, geometry) %>%
+#   st_make_valid()
+# 
+# mgrs_sif_centroids_plot <- ggplot() +
+#   geom_sf(data = germany_states_mgrs, fill = "grey95", color = "grey55", linewidth = 0.25) +
+#   geom_sf(data = mgrs_tile_bboxes, fill = NA, color = "black", linewidth = 0.7) +
+#   geom_sf_text(data = mgrs_tile_labels, aes(label = mgrs_tile), size = 3, color = "black") +
+#   geom_sf(data = sif_mgrs_centroids_in_tiles, aes(color = target_modis_sif), size = 0.35, alpha = 0.7) +
+#   scale_color_viridis_c(name = "target_modis_sif") +
+#   labs(title = "SIF centroids inside selected MGRS tile bounding boxes", x = NULL, y = NULL) +
+#   theme_minimal() +
+#   theme(panel.grid.major = element_line(linewidth = 0.15, color = "grey85"), legend.position = "right")
+# 
+# print(mgrs_sif_centroids_plot)
 
 
 #-------------------------------------------------------------------------------
@@ -1438,7 +1438,7 @@ res(r_check)
 crs(r_check)
 
 #-------------------------------------------------------------------------------
-df <- readRDS("data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange.rds")
+df <- readRDS("data/main_sif_data/2tiles_2_7_M01_QF01_inoutrange.rds")
 
 library(sf)
 library(tidyverse)
@@ -1519,5 +1519,10 @@ global(b8, fun = function(x, ...) {
 })
 
 plot(b8)
+
+
+#-------------------------------------------------------------------------------
+df <- read_csv('data/main_sif_data/2tiles_2_7_M01_QF01_inoutrange_PARrm.csv')
+length(unique(df$Delta_Date))
 
 

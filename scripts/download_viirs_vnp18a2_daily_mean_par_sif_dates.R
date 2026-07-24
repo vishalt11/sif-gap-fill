@@ -35,7 +35,7 @@ eval(parse(text = helper_code), envir = environment())
 # VNP18A2 Version 2 configuration
 # -----------------------------------------------------------------------------
 
-date_csv <- "data/main_sif_data/sif_dates.csv"
+date_csv <- "data/main_sif_data/sif_dates_11tiles.csv"
 date_column <- "Delta_Date"
 
 collection_concept_id <- "C2631841566-LPCLOUD"
