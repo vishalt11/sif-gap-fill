@@ -1522,7 +1522,16 @@ plot(b8)
 
 
 #-------------------------------------------------------------------------------
-df <- read_csv('data/main_sif_data/2tiles_2_7_M01_QF01_inoutrange_PARrm.csv')
-length(unique(df$Delta_Date))
+df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv')
 
+inc <- 0.25
+sif_breaks <- seq(
+  floor(min(df$target_modis_sif, na.rm = TRUE) / inc) * inc,
+  ceiling(max(df$target_modis_sif, na.rm = TRUE) / inc) * inc,
+  by = inc
+)
+df_binned <- df %>%
+  mutate(area_bin = cut(target_modis_sif, breaks = sif_breaks, include.lowest = TRUE, right = FALSE)) %>%
+  select(area_bin)
+table(df_binned$area_bin)
 
