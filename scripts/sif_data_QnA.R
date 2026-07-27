@@ -1535,3 +1535,277 @@ df_binned <- df %>%
   select(area_bin)
 table(df_binned$area_bin)
 
+#-------------------------------------------------------------------------------
+
+df1 <- read_csv(
+  "data/pmeans_model_data/model_data_pmeans_6tiles.csv",
+  show_col_types = FALSE
+)
+
+df2 <- read_csv(
+  "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv",
+  show_col_types = FALSE
+)
+
+coordinate_cols <- c(
+  "Latitude", "Longitude",
+  "Lat_corner1", "Lat_corner2", "Lat_corner3", "Lat_corner4",
+  "Lon_corner1", "Lon_corner2", "Lon_corner3", "Lon_corner4"
+)
+
+# Six decimal places is approximately decimetre-level coordinate precision.
+make_join_keys <- function(data) {
+  data %>%
+    mutate(
+      join_time = as.numeric(as.POSIXct(Delta_Time, tz = "UTC")),
+      across(
+        all_of(coordinate_cols),
+        ~ round(as.numeric(.x), 6),
+        .names = "join_{.col}"
+      )
+    )
+}
+
+join_columns <- c(
+  "join_time",
+  paste0("join_", coordinate_cols)
+)
+
+df1_keyed <- make_join_keys(df1)
+df2_keyed <- make_join_keys(df2)
+
+# Only append columns that are not already present in df1.
+columns_to_append <- setdiff(
+  names(df2),
+  c(names(df1), "Delta_Time", coordinate_cols)
+)
+
+# Make sure one geometry/time key does not match multiple df2 rows.
+duplicate_df2_keys <- df2_keyed %>%
+  group_by(across(all_of(join_columns))) %>%
+  summarise(n_matches = n(), .groups = "drop") %>%
+  filter(n_matches > 1)
+
+if (nrow(duplicate_df2_keys) > 0) {
+  stop(
+    "df2 contains duplicated coordinate/time keys. ",
+    "Inspect duplicate_df2_keys before joining."
+  )
+}
+
+df2_for_join <- df2_keyed %>%
+  select(
+    all_of(join_columns),
+    all_of(columns_to_append)
+  )
+
+joined_df <- df1_keyed %>%
+  left_join(
+    df2_for_join,
+    by = join_columns,
+    relationship = "many-to-one"
+  ) %>%
+  select(-all_of(join_columns))
+
+# Confirm that the join did not duplicate df1 rows.
+stopifnot(nrow(joined_df) == nrow(df1))
+
+message("Original df1 rows: ", nrow(df1))
+message(
+  "Rows matched to target_modis_sif: ",
+  sum(!is.na(joined_df$target_modis_sif))
+)
+message(
+  "Unmatched rows: ",
+  sum(is.na(joined_df$target_modis_sif))
+)
+
+colSums(is.na(joined_df))
+
+joined_df <- joined_df %>%
+  filter(!is.na(target_modis_sif))
+
+joined_df[is.na(joined_df$ww_pct),]$ww_pct <- 0
+
+joined_df <- joined_df %>%
+  drop_na()
+
+message("Complete rows retained: ", nrow(joined_df))
+
+# Inspect the newly acquired target and metadata.
+joined_df %>%
+  select(
+    Daily_SIF_740nm,
+    Daily_SIF_757nm,
+    Daily_SIF_771nm,
+    target_modis_sif,
+    final_check_modis_sif,
+    hzs,
+    date_align,
+    product_path
+  ) %>%
+  head()
+
+write_csv(joined_df,"data/pmeans_model_data/model_data_pmeans_6tiles_with_modis_sif.csv")
+
+#-------------------------------------------------------------------------------
+
+df <- read_csv('data/pmeans_model_data/model_data_pmeans_6tiles_with_modis_sif_fapar_par.csv')
+
+df %>%
+  filter(is.na(active_crop_pct)) %>%
+  count(crop_pixel_count)
+
+df <- df %>%
+  mutate(
+    active_crop_pct = if_else(
+      is.na(active_crop_pct) & crop_pixel_count == 0,
+      0,
+      active_crop_pct
+    )
+  )
+
+sort(colSums(is.na(df)))
+
+df <- df %>% drop_na()
+
+write_csv(df,"data/pmeans_model_data/model_data_pmeans_6tiles_with_modis_sif_fapar_par_cleaned.csv")
+
+colnames(df)
+
+
+#-------------------------------------------------------------------------------
+
+target_mgrs_tiles <- c("32UNA", "32UQV", "32UPU")
+
+target_mgrs_tif_paths <- list.files("data/temp_data/mgrs_tifs", pattern = "\\.tif$", full.names = TRUE) %>%
+  keep(~ stringr::str_extract(basename(.x), "T[0-9]{2}[A-Z]{3}") %>% stringr::str_remove("^T") %in% target_mgrs_tiles)
+
+target_mgrs_bboxes <- target_mgrs_tif_paths %>%
+  map(function(tif_path) {
+    tif_rast <- terra::rast(tif_path)
+    tif_ext <- unname(as.vector(terra::ext(tif_rast)))
+    tif_bbox <- st_bbox(c(xmin = tif_ext[1], ymin = tif_ext[3], xmax = tif_ext[2], ymax = tif_ext[4]), crs = st_crs(terra::crs(tif_rast)))
+    st_sf(mgrs_tile = stringr::str_extract(basename(tif_path), "T[0-9]{2}[A-Z]{3}") %>% stringr::str_remove("^T"), tif_file = basename(tif_path), geometry = st_as_sfc(tif_bbox)) %>%
+      st_transform(4326)
+  }) %>%
+  bind_rows() %>%
+  st_make_valid()
+
+target_mgrs_labels <- target_mgrs_bboxes %>%
+  st_transform(centroid_crs) %>%
+  st_centroid() %>%
+  st_transform(4326)
+
+germany_states_mgrs_bavaria <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, resolution = "01", epsg = 4326) %>%
+  dplyr::select(nuts_id = NUTS_ID, state = NUTS_NAME, geometry) %>%
+  st_make_valid()
+
+bavaria_nuts1 <- germany_states_mgrs_bavaria %>%
+  filter(nuts_id == "DE2")
+
+bavaria_nuts3 <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 3, resolution = "01", epsg = 4326) %>%
+  filter(stringr::str_starts(NUTS_ID, "DE2")) %>%
+  dplyr::select(nuts_id = NUTS_ID, nuts3 = NUTS_NAME, geometry) %>%
+  st_make_valid()
+
+mgrs_bavaria_bbox <- st_bbox(st_union(st_geometry(bind_rows(bavaria_nuts1 %>% dplyr::select(geometry), target_mgrs_bboxes %>% dplyr::select(geometry)))))
+mgrs_bavaria_xpad <- (mgrs_bavaria_bbox[["xmax"]] - mgrs_bavaria_bbox[["xmin"]]) * 0.08
+mgrs_bavaria_ypad <- (mgrs_bavaria_bbox[["ymax"]] - mgrs_bavaria_bbox[["ymin"]]) * 0.08
+
+mgrs_bavaria_plot <- ggplot() +
+  geom_sf(data = germany_states_mgrs_bavaria, fill = "grey96", color = "grey65", linewidth = 0.25) +
+  geom_sf(data = bavaria_nuts1, fill = "#e8f3ff", color = "#1f78b4", linewidth = 0.7, alpha = 0.55) +
+  geom_sf(data = bavaria_nuts3, fill = NA, color = "#1f78b4", linewidth = 0.25) +
+  geom_sf(data = target_mgrs_bboxes, fill = NA, color = "#e31a1c", linewidth = 0.9) +
+  geom_sf_text(data = target_mgrs_labels, aes(label = mgrs_tile), color = "#e31a1c", size = 3.5, fontface = "bold") +
+  coord_sf(ylim = c(47, 51), xlim = c(8, 14), expand = FALSE) +
+  labs(title = "Selected MGRS Tile Borders With Bavaria NUTS 3", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(panel.grid.major = element_line(linewidth = 0.15, color = "grey85"), legend.position = "none")
+
+print(mgrs_bavaria_plot)
+
+nuts3_tile_overlap <- st_intersection(
+  bavaria_nuts3 %>%
+    st_transform(centroid_crs) %>%
+    mutate(nuts3_area_m2 = as.numeric(st_area(geometry))),
+  target_mgrs_bboxes %>%
+    st_transform(centroid_crs) %>%
+    dplyr::select(mgrs_tile)
+) %>%
+  mutate(overlap_area_m2 = as.numeric(st_area(geometry)),
+         nuts3_area_in_mgrs_pct = (overlap_area_m2 / nuts3_area_m2) * 100) %>%
+  st_drop_geometry() %>%
+  dplyr::select(nuts_id, nuts3, mgrs_tile, nuts3_area_m2, overlap_area_m2, nuts3_area_in_mgrs_pct)
+
+nuts3_regions_80pct_in_mgrs <- bavaria_nuts3 %>%
+  left_join(nuts3_tile_overlap %>% filter(nuts3_area_in_mgrs_pct >= 80), by = c("nuts_id", "nuts3")) %>%
+  filter(!is.na(mgrs_tile)) %>%
+  st_make_valid()
+
+
+saveRDS(nuts3_regions_80pct_in_mgrs, 'nuts3_regions_80pct_in_mgrs.rds')
+
+mgrs_nuts3_80pct_plot <- ggplot() +
+  geom_sf(data = bavaria_nuts1, fill = "grey96", color = "grey55", linewidth = 0.4) +
+  geom_sf(data = bavaria_nuts3, fill = NA, color = "grey78", linewidth = 0.18) +
+  geom_sf(data = nuts3_regions_80pct_in_mgrs, aes(fill = mgrs_tile), color = "#1f78b4", linewidth = 0.25, alpha = 0.65) +
+  geom_sf(data = target_mgrs_bboxes, fill = NA, color = "#e31a1c", linewidth = 0.9) +
+  geom_sf_text(data = target_mgrs_labels, aes(label = mgrs_tile), color = "#e31a1c", size = 3.5, fontface = "bold") +
+  coord_sf(ylim = c(47, 51), xlim = c(8, 14), expand = FALSE) +
+  labs(title = "Bavaria NUTS 3 Regions With At Least 80 Percent Area Inside Selected MGRS Tiles", fill = "MGRS tile", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(panel.grid.major = element_line(linewidth = 0.15, color = "grey85"), legend.position = "right")
+
+print(mgrs_nuts3_80pct_plot)
+
+#-------------------------------------------------------------------------------
+
+availability_mgrs_tiles <- c("32UPU", "32UNA", "32UQV")
+availability_product_pattern <- "^SENTINEL2[A-Z]_\\d{8}-000000-000_L3A_T\\d{2}[A-Z]{3}_C_V[0-9]-[0-9]$"
+
+mgrs_product_folder_index <- availability_mgrs_tiles %>%
+  map(~ list.dirs(file.path("data/geodes_wasp_zips", .x), recursive = TRUE, full.names = TRUE)) %>%
+  unlist(use.names = FALSE) %>%
+  keep(~ stringr::str_detect(basename(.x), availability_product_pattern)) %>%
+  tibble(product_path = .) %>%
+  mutate(product_id = basename(product_path),
+         mgrs_tile = stringr::str_remove(stringr::str_extract(product_id, "T\\d{2}[A-Z]{3}"), "^T"),
+         product_date = as.Date(stringr::str_extract(product_id, "\\d{8}"), format = "%Y%m%d"),
+         product_year = lubridate::year(product_date),
+         product_month = lubridate::month(product_date),
+         year_month = format(product_date, "%Y-%m"),
+         product_version = stringr::str_extract(product_id, "V[0-9]-[0-9]$")) %>%
+  arrange(mgrs_tile, product_year, product_month)
+
+mgrs_year_month_availability <- mgrs_product_folder_index %>%
+  group_by(mgrs_tile, product_year, product_month, year_month) %>%
+  summarise(n_products = n(), product_ids = paste(product_id, collapse = "; "), product_paths = paste(product_path, collapse = "; "), .groups = "drop") %>%
+  mutate(is_available = TRUE) %>%
+  complete(mgrs_tile = availability_mgrs_tiles, product_year = min(product_year):max(product_year), product_month = 1:12, fill = list(n_products = 0, product_ids = NA_character_, product_paths = NA_character_, is_available = FALSE)) %>%
+  mutate(year_month = if_else(is.na(year_month), sprintf("%s-%02d", product_year, product_month), year_month),
+         month_label = factor(month.abb[product_month], levels = month.abb)) %>%
+  arrange(mgrs_tile, product_year, product_month)
+
+mgrs_year_month_availability %>%
+  filter(is_available) %>%
+  dplyr::select(mgrs_tile, product_year, product_month, year_month, n_products, product_ids, product_paths)
+
+mgrs_year_month_availability_plot <- ggplot(mgrs_year_month_availability, aes(x = month_label, y = factor(product_year), fill = is_available)) +
+  geom_tile(color = "white", linewidth = 0.35) +
+  geom_text(aes(label = if_else(is_available, "yes", "")), size = 2.6, color = "white") +
+  facet_wrap(~ mgrs_tile, ncol = 1) +
+  scale_fill_manual(values = c("TRUE" = "#1f78b4", "FALSE" = "grey88"), labels = c("FALSE" = "missing", "TRUE" = "available"), name = NULL) +
+  labs(title = "Available Sentinel-2 Monthly Composite Folders", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(), legend.position = "bottom", strip.text = element_text(face = "bold"))
+
+print(mgrs_year_month_availability_plot)
+
+
+
+
+
+
+

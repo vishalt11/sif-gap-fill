@@ -7,6 +7,9 @@ library(earth)
 set.seed(42)
 
 # model_data_path <- "data/final_model.csv"
+
+df <- read_csv('data/pmeans_model_data/model_data_pmeans_6tiles.csv')
+colnames(df)
 # target_col <- "sif"
 train_fraction <- 0.8
 # 
