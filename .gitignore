@@ -3,6 +3,7 @@ scripts/pro_env
 scripts/tmp	
 scripts/config.json
 scripts/pygeodes-config.json
+scripts/kaggle_scripts
 pygeodes-config.json
 config.json
 scripts/quickstart.ipynb

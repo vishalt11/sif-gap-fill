@@ -1804,8 +1804,35 @@ mgrs_year_month_availability_plot <- ggplot(mgrs_year_month_availability, aes(x 
 print(mgrs_year_month_availability_plot)
 
 
+#-------------------------------------------------------------------------------
 
+df <- read_csv('data/pmeans_model_data/model_data_pmeans_6tiles_with_modis_sif_fapar_par_cleaned.csv')
+colnames(df)
 
+colSums(is.na(df))
+
+#-------------------------------------------------------------------------------
+
+germany_state_borders <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, resolution = "01", epsg = 4326) %>%
+  dplyr::select(state = NUTS_NAME, nuts_id = NUTS_ID, geometry) %>%
+  st_make_valid()
+
+germany_boundaries_gpkg <- "data/germany_boundaries.gpkg"
+
+st_write(germany_state_borders, germany_boundaries_gpkg, delete_dsn = TRUE)
+
+#-------------------------------------------------------------------------------
+
+hzs_geojson_paths <- list.files("temp/hzs", pattern = "\\.geojson$", full.names = TRUE)
+
+hzs_zones <- hzs_geojson_paths %>%
+  map(sf::read_sf) %>%
+  bind_rows() %>%
+  st_make_valid()
+
+st_write(hzs_zones, "data/hzs_zones.gpkg", delete_dsn = TRUE)
+
+#-------------------------------------------------------------------------------
 
 
 
