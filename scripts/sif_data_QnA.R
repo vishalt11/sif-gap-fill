@@ -1834,5 +1834,11 @@ st_write(hzs_zones, "data/hzs_zones.gpkg", delete_dsn = TRUE)
 
 #-------------------------------------------------------------------------------
 
+df <- read_csv('data/sif_sf_1_12_crop_zonal_19_24.csv')
+df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
+
+colnames(df)
+
+
 
 
