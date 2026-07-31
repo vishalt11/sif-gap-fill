@@ -1,9 +1,9 @@
 library(sf)
 library(dplyr)
 
-input_path <- "data/nuts3_regions_80pct_in_mgrs.rds"
-output_path <- "data/nuts3_regions_80pct_in_mgrs.gpkg"
-output_layer <- "nuts3_regions_80pct_in_mgrs"
+input_path <- "data/nuts3_regions_50pct_in_mgrs.rds"
+output_path <- "data/nuts3_regions_50pct_in_mgrs.gpkg"
+output_layer <- "nuts3_regions_50pct_in_mgrs"
 
 nuts3_regions <- readRDS(input_path) %>%
   st_make_valid() %>%

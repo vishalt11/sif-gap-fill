@@ -3,10 +3,12 @@ library(sf)
 library(lubridate)
 
 # Build the raw, mixed-pixel OCO-2 SIF baselines for the winter-wheat yield
-# comparison. The two baselines differ only in footprint selection:
+# comparison. The four baselines differ only in footprint selection:
 #
 #   1. raw_all:  all accepted OCO-2 footprints in a study NUTS3 region
-#   2. raw_ww10: accepted footprints with at least 10% winter-wheat coverage
+#   2. raw_ww05: accepted footprints with at least 5% winter-wheat coverage
+#   3. raw_ww10: accepted footprints with at least 10% winter-wheat coverage
+#   4. raw_ww30: accepted footprints with at least 30% winter-wheat coverage
 #
 # Within each NUTS3 region and month, footprints are averaged by acquisition
 # date first. The monthly value is then the unweighted mean of the date means,
@@ -16,7 +18,7 @@ input_sif_rds <- paste0(
   "data/extracted_modis_data/",
   "modis_1_12_bin_uncertainity_corrected_raw.rds"
 )
-nuts3_regions_rds <- "data/nuts3_regions_80pct_in_mgrs.rds"
+nuts3_regions_rds <- "data/nuts3_regions_50pct_in_mgrs.rds"
 
 crop_pure_wide_csv <- paste0(
   "data/winter_wheat_yield_model/monthly_crop_pure_sif/",
@@ -28,16 +30,21 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 analysis_years <- c(2019L, 2020L, 2021L, 2022L, 2024L)
 analysis_months <- 3:7
-winter_wheat_threshold <- 0.10
+winter_wheat_threshold_05 <- 0.05
+winter_wheat_threshold_10 <- 0.10
+winter_wheat_threshold_30 <- 0.30
 spatial_join_crs <- 3035
+
+lat_corner_cols <- paste0("Lat_corner", 1:4)
+lon_corner_cols <- paste0("Lon_corner", 1:4)
+corner_cols <- c(lat_corner_cols, lon_corner_cols)
 
 required_sif_cols <- c(
   "target_modis_sif",
   "final_check_modis_sif",
   "Delta_Date",
-  "Latitude",
-  "Longitude",
-  "ww_pct"
+  "ww_pct",
+  corner_cols
 )
 
 month_lookup <- tibble(
@@ -67,6 +74,40 @@ weighted_mean_or_na <- function(x, weights) {
   weighted.mean(x[valid], w = weights[valid])
 }
 
+corner_polygon_centroids <- function(data) {
+  x <- as.matrix(data[, lon_corner_cols, drop = FALSE])
+  y <- as.matrix(data[, lat_corner_cols, drop = FALSE])
+  x_next <- x[, c(2L, 3L, 4L, 1L), drop = FALSE]
+  y_next <- y[, c(2L, 3L, 4L, 1L), drop = FALSE]
+
+  edge_cross <- x * y_next - x_next * y
+  twice_signed_area <- rowSums(edge_cross)
+
+  centroid_longitude <- rowSums((x + x_next) * edge_cross) /
+    (3 * twice_signed_area)
+  centroid_latitude <- rowSums((y + y_next) * edge_cross) /
+    (3 * twice_signed_area)
+
+  # Degenerate footprints are not expected. The corner mean is a stable
+  # fallback and is the exact centroid for a parallelogram.
+  use_fallback <- !is.finite(twice_signed_area) |
+    abs(twice_signed_area) < 1e-14 |
+    !is.finite(centroid_longitude) |
+    !is.finite(centroid_latitude)
+
+  centroid_longitude[use_fallback] <- rowMeans(
+    x[use_fallback, , drop = FALSE]
+  )
+  centroid_latitude[use_fallback] <- rowMeans(
+    y[use_fallback, , drop = FALSE]
+  )
+
+  tibble(
+    centroid_longitude = centroid_longitude,
+    centroid_latitude = centroid_latitude
+  )
+}
+
 write_table_pair <- function(data, path_without_extension) {
   saveRDS(data, paste0(path_without_extension, ".rds"))
   readr::write_csv(data, paste0(path_without_extension, ".csv"), na = "")
@@ -83,35 +124,8 @@ monthly_to_wide <- function(monthly_data, prefix, skeleton) {
       names_prefix = paste0(prefix, "_SIF_")
     )
 
-  footprint_count_wide <- monthly_data %>%
-    select(all_of(key_cols), month_name, n_raw_footprints) %>%
-    pivot_wider(
-      names_from = month_name,
-      values_from = n_raw_footprints,
-      names_prefix = paste0(prefix, "_n_footprints_")
-    )
-
-  date_count_wide <- monthly_data %>%
-    select(all_of(key_cols), month_name, n_raw_dates) %>%
-    pivot_wider(
-      names_from = month_name,
-      values_from = n_raw_dates,
-      names_prefix = paste0(prefix, "_n_dates_")
-    )
-
-  wheat_coverage_wide <- monthly_data %>%
-    select(all_of(key_cols), month_name, mean_footprint_ww_pct) %>%
-    pivot_wider(
-      names_from = month_name,
-      values_from = mean_footprint_ww_pct,
-      names_prefix = paste0(prefix, "_mean_footprint_ww_pct_")
-    )
-
   skeleton %>%
-    left_join(sif_wide, by = key_cols) %>%
-    left_join(footprint_count_wide, by = key_cols) %>%
-    left_join(date_count_wide, by = key_cols) %>%
-    left_join(wheat_coverage_wide, by = key_cols)
+    left_join(sif_wide, by = key_cols)
 }
 
 summarize_raw_sif <- function(assigned_sif, baseline_name) {
@@ -166,6 +180,14 @@ if (inherits(sif_data, "sf")) {
   sif_data <- st_drop_geometry(sif_data)
 }
 
+# Also remove a detached geometry/sfc column if the object lost its sf class
+# before it was saved.
+sfc_cols <- names(sif_data)[
+  vapply(sif_data, inherits, logical(1), what = "sfc")
+]
+sif_data <- sif_data %>%
+  select(-any_of(unique(c("geometry", sfc_cols))))
+
 missing_sif_cols <- setdiff(required_sif_cols, names(sif_data))
 if (length(missing_sif_cols) > 0) {
   stop(
@@ -174,7 +196,7 @@ if (length(missing_sif_cols) > 0) {
   )
 }
 
-message("Reading the 32 study NUTS3 regions...")
+message("Reading study NUTS3 regions...")
 nuts3_regions <- readRDS(nuts3_regions_rds)
 
 if (!inherits(nuts3_regions, "sf")) {
@@ -202,13 +224,10 @@ nuts3_lookup <- nuts3_regions %>%
   st_drop_geometry() %>%
   distinct(nuts_id, mgrs_tile, .keep_all = TRUE)
 
-if (nrow(nuts3_lookup) != 32) {
-  warning(
-    "Expected 32 unique NUTS3/tile rows but found ",
-    nrow(nuts3_lookup),
-    "."
-  )
-}
+message(
+  "Unique NUTS3/tile rows: ",
+  format(nrow(nuts3_lookup), big.mark = ",")
+)
 
 model_skeleton <- crossing(
   nuts3_lookup,
@@ -221,8 +240,7 @@ accepted_sif <- sif_data %>%
     .raw_sif_row_id = row_number(),
     Delta_Date = as.Date(Delta_Date),
     target_modis_sif = as.numeric(target_modis_sif),
-    Latitude = as.numeric(Latitude),
-    Longitude = as.numeric(Longitude),
+    across(all_of(corner_cols), as.numeric),
     ww_pct = as.numeric(ww_pct),
     final_check_modis_sif = str_to_lower(
       str_trim(as.character(final_check_modis_sif))
@@ -235,8 +253,7 @@ accepted_sif <- sif_data %>%
     year %in% analysis_years,
     month %in% analysis_months,
     is.finite(target_modis_sif),
-    is.finite(Latitude),
-    is.finite(Longitude)
+    if_all(all_of(corner_cols), ~ is.finite(.x))
   ) %>%
   left_join(month_lookup, by = "month")
 
@@ -256,12 +273,14 @@ message(
   format(nrow(accepted_sif), big.mark = ",")
 )
 
-# Latitude and Longitude are the supplied OCO-2 footprint-centre coordinates.
-# Using them avoids expensive polygon construction when only region membership
-# of each footprint centroid is required.
-sif_centroids <- accepted_sif %>%
+# Calculate the true planar centroid of each four-corner footprint. This is
+# vectorized to avoid constructing hundreds of thousands of temporary sf
+# polygons when only their centroid points are needed for region assignment.
+corner_centroids <- corner_polygon_centroids(accepted_sif)
+
+sif_centroids <- bind_cols(accepted_sif, corner_centroids) %>%
   st_as_sf(
-    coords = c("Longitude", "Latitude"),
+    coords = c("centroid_longitude", "centroid_latitude"),
     crs = 4326,
     remove = FALSE
   ) %>%
@@ -281,7 +300,7 @@ assigned_sif <- st_join(
   st_drop_geometry()
 
 message(
-  "Accepted SIF rows assigned to the 32 NUTS3 regions: ",
+  "Accepted SIF rows assigned to the study NUTS3 regions: ",
   format(nrow(assigned_sif), big.mark = ",")
 )
 
@@ -297,8 +316,8 @@ assigned_export <- assigned_sif %>%
     month_name,
     target_modis_sif,
     ww_pct,
-    Latitude,
-    Longitude,
+    centroid_latitude,
+    centroid_longitude,
     any_of(c(
       "Quality_Flag",
       "Metadata.MeasurementMode",
@@ -317,15 +336,33 @@ raw_all <- summarize_raw_sif(
   baseline_name = "all_accepted"
 )
 
-assigned_sif_ww10 <- assigned_sif %>%
+assigned_sif_ww05 <- assigned_sif %>%
   filter(
     is.finite(ww_pct),
-    ww_pct >= winter_wheat_threshold
+    ww_pct >= winter_wheat_threshold_05
   )
 
 message(
   "Assigned rows with ww_pct >= ",
-  winter_wheat_threshold,
+  winter_wheat_threshold_05,
+  ": ",
+  format(nrow(assigned_sif_ww05), big.mark = ",")
+)
+
+raw_ww05 <- summarize_raw_sif(
+  assigned_sif = assigned_sif_ww05,
+  baseline_name = "ww_pct_ge_0.05"
+)
+
+assigned_sif_ww10 <- assigned_sif %>%
+  filter(
+    is.finite(ww_pct),
+    ww_pct >= winter_wheat_threshold_10
+  )
+
+message(
+  "Assigned rows with ww_pct >= ",
+  winter_wheat_threshold_10,
   ": ",
   format(nrow(assigned_sif_ww10), big.mark = ",")
 )
@@ -335,15 +372,45 @@ raw_ww10 <- summarize_raw_sif(
   baseline_name = "ww_pct_ge_0.10"
 )
 
+assigned_sif_ww30 <- assigned_sif %>%
+  filter(
+    is.finite(ww_pct),
+    ww_pct >= winter_wheat_threshold_30
+  )
+
+message(
+  "Assigned rows with ww_pct >= ",
+  winter_wheat_threshold_30,
+  ": ",
+  format(nrow(assigned_sif_ww30), big.mark = ",")
+)
+
+raw_ww30 <- summarize_raw_sif(
+  assigned_sif = assigned_sif_ww30,
+  baseline_name = "ww_pct_ge_0.30"
+)
+
 raw_all_wide <- monthly_to_wide(
   monthly_data = raw_all$monthly,
   prefix = "raw_all",
   skeleton = model_skeleton
 )
 
+raw_ww05_wide <- monthly_to_wide(
+  monthly_data = raw_ww05$monthly,
+  prefix = "raw_ww05",
+  skeleton = model_skeleton
+)
+
 raw_ww10_wide <- monthly_to_wide(
   monthly_data = raw_ww10$monthly,
   prefix = "raw_ww10",
+  skeleton = model_skeleton
+)
+
+raw_ww30_wide <- monthly_to_wide(
+  monthly_data = raw_ww30$monthly,
+  prefix = "raw_ww30",
   skeleton = model_skeleton
 )
 
@@ -361,6 +428,19 @@ write_table_pair(
 )
 
 write_table_pair(
+  raw_ww05$daily,
+  file.path(output_dir, "nuts3_raw_mixed_sif_ww05_daily")
+)
+write_table_pair(
+  raw_ww05$monthly,
+  file.path(output_dir, "nuts3_raw_mixed_sif_ww05_long")
+)
+write_table_pair(
+  raw_ww05_wide,
+  file.path(output_dir, "nuts3_raw_mixed_sif_ww05_wide")
+)
+
+write_table_pair(
   raw_ww10$daily,
   file.path(output_dir, "nuts3_raw_mixed_sif_ww10_daily")
 )
@@ -373,9 +453,24 @@ write_table_pair(
   file.path(output_dir, "nuts3_raw_mixed_sif_ww10_wide")
 )
 
+write_table_pair(
+  raw_ww30$daily,
+  file.path(output_dir, "nuts3_raw_mixed_sif_ww30_daily")
+)
+write_table_pair(
+  raw_ww30$monthly,
+  file.path(output_dir, "nuts3_raw_mixed_sif_ww30_long")
+)
+write_table_pair(
+  raw_ww30_wide,
+  file.path(output_dir, "nuts3_raw_mixed_sif_ww30_wide")
+)
+
 coverage_summary <- bind_rows(
   raw_all$monthly,
-  raw_ww10$monthly
+  raw_ww05$monthly,
+  raw_ww10$monthly,
+  raw_ww30$monthly
 ) %>%
   group_by(baseline, month, month_name) %>%
   summarise(
@@ -421,7 +516,17 @@ if (file.exists(crop_pure_wide_csv)) {
       by = c("nuts_id", "mgrs_tile", "year")
     ) %>%
     left_join(
+      raw_ww05_wide %>%
+        select(-any_of(c("nuts3", "nuts3_area_in_mgrs_pct"))),
+      by = c("nuts_id", "mgrs_tile", "year")
+    ) %>%
+    left_join(
       raw_ww10_wide %>%
+        select(-any_of(c("nuts3", "nuts3_area_in_mgrs_pct"))),
+      by = c("nuts_id", "mgrs_tile", "year")
+    ) %>%
+    left_join(
+      raw_ww30_wide %>%
         select(-any_of(c("nuts3", "nuts3_area_in_mgrs_pct"))),
       by = c("nuts_id", "mgrs_tile", "year")
     )

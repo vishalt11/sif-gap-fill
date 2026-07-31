@@ -1,0 +1,30 @@
+model_key,model,rank,predictor,importance
+crop_pure_monthly,Crop-pure monthly SIF,1,SIF_July_calibrated,0.405310435934505
+crop_pure_monthly,Crop-pure monthly SIF,2,SIF_March_calibrated,0.3021319329094326
+crop_pure_monthly,Crop-pure monthly SIF,3,SIF_May_calibrated,0.11412202086969685
+crop_pure_monthly,Crop-pure monthly SIF,4,SIF_June_calibrated,0.11163766337435302
+crop_pure_monthly,Crop-pure monthly SIF,5,SIF_April_calibrated,0.06679794691201248
+raw_all_monthly,Raw all-footprint monthly SIF,1,raw_all_SIF_July,0.30345482362728937
+raw_all_monthly,Raw all-footprint monthly SIF,2,raw_all_SIF_April,0.19374681597541882
+raw_all_monthly,Raw all-footprint monthly SIF,3,raw_all_SIF_June,0.19236566629281202
+raw_all_monthly,Raw all-footprint monthly SIF,4,raw_all_SIF_May,0.18023753842664042
+raw_all_monthly,Raw all-footprint monthly SIF,5,raw_all_SIF_March,0.13019515567783937
+raw_ww05_monthly,Raw >=5% wheat monthly SIF,1,raw_ww05_SIF_July,0.3541422635025862
+raw_ww05_monthly,Raw >=5% wheat monthly SIF,2,raw_ww05_SIF_March,0.20585101576639162
+raw_ww05_monthly,Raw >=5% wheat monthly SIF,3,raw_ww05_SIF_April,0.18613030903277084
+raw_ww05_monthly,Raw >=5% wheat monthly SIF,4,raw_ww05_SIF_June,0.1615930839531089
+raw_ww05_monthly,Raw >=5% wheat monthly SIF,5,raw_ww05_SIF_May,0.09228332774514253
+raw_ww10_monthly,Raw >=10% wheat monthly SIF,1,raw_ww10_SIF_July,0.33914634402624905
+raw_ww10_monthly,Raw >=10% wheat monthly SIF,2,raw_ww10_SIF_April,0.20698505228999395
+raw_ww10_monthly,Raw >=10% wheat monthly SIF,3,raw_ww10_SIF_June,0.17211929665304215
+raw_ww10_monthly,Raw >=10% wheat monthly SIF,4,raw_ww10_SIF_March,0.15236761321319342
+raw_ww10_monthly,Raw >=10% wheat monthly SIF,5,raw_ww10_SIF_May,0.12938169381752143
+raw_ww30_monthly,Raw >=30% wheat monthly SIF,1,raw_ww30_SIF_June,0.2723923624768382
+raw_ww30_monthly,Raw >=30% wheat monthly SIF,2,raw_ww30_SIF_May,0.2363120943389459
+raw_ww30_monthly,Raw >=30% wheat monthly SIF,3,raw_ww30_SIF_April,0.18130351860004057
+raw_ww30_monthly,Raw >=30% wheat monthly SIF,4,raw_ww30_SIF_July,0.16417836155070475
+raw_ww30_monthly,Raw >=30% wheat monthly SIF,5,raw_ww30_SIF_March,0.14581366303347051
+raw_all_seasonal_mean,Raw all-footprint seasonal-mean SIF,1,raw_all_seasonal_sif,1.0
+raw_ww05_seasonal_mean,Raw >=5% wheat seasonal-mean SIF,1,raw_ww05_seasonal_sif,1.0
+raw_ww10_seasonal_mean,Raw >=10% wheat seasonal-mean SIF,1,raw_ww10_seasonal_sif,1.0
+raw_ww30_seasonal_mean,Raw >=30% wheat seasonal-mean SIF,1,raw_ww30_seasonal_sif,1.0

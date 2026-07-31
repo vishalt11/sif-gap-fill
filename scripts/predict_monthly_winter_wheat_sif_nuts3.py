@@ -56,8 +56,8 @@ import prepare_sentinel2_multisif_cnn_chips as sentinel
 # ---------------------------------------------------------------------------
 # Configuration
 
-NUTS3_PATH = Path("data/nuts3_regions_80pct_in_mgrs.gpkg")
-NUTS3_LAYER = "nuts3_regions_80pct_in_mgrs"
+NUTS3_PATH = Path("data/nuts3_regions_50pct_in_mgrs.gpkg")
+NUTS3_LAYER = "nuts3_regions_50pct_in_mgrs"
 
 SENTINEL_DIR = Path("data/geodes_wasp_zips")
 FAPAR_DIR = Path("data/glass_geotiff/fapar")
@@ -74,7 +74,7 @@ LONG_OUTPUT_PATH = OUTPUT_DIR / "nuts3_monthly_strict_wheat_sif_long.csv"
 WIDE_OUTPUT_PATH = OUTPUT_DIR / "nuts3_monthly_strict_wheat_sif_wide.csv"
 SCENE_LOG_PATH = OUTPUT_DIR / "scene_processing_log.csv"
 
-TARGET_TILES = ("32UNA", "32UPU", "32UQV")
+TARGET_TILES = ("32UNA", "32UPU", "32UQV", "32UPA", "32UPV")
 YEARS = (2019, 2020, 2021, 2022, 2024)
 MONTHS = (3, 4, 5, 6, 7)
 
@@ -89,7 +89,9 @@ INFERENCE_BATCH_SIZE = 8
 # Use None for all scenes. Set an integer for a smoke test.
 MAX_SCENES: int | None = None
 
-# Resume completed tile/year/month scenes from the long output table.
+# Resume completed NUTS3 region/year/month records from the long output table.
+# This allows newly added regions to be processed without rerunning regions
+# that were already completed in the same tile/month.
 RESUME = True
 
 # Full prediction maps are intentionally not written.
@@ -1258,49 +1260,76 @@ def infer_scene(
 # Output assembly
 
 
-def existing_completed_scenes() -> set[tuple[str, int, int]]:
+COMPLETED_REGION_STATUSES = {
+    "success",
+    "missing_sentinel_product",
+    "missing_monthly_par",
+    "no_strict_wheat",
+}
+
+
+def existing_completed_region_months() -> set[tuple[str, str, int, int]]:
     if not RESUME or not LONG_OUTPUT_PATH.exists():
         return set()
     existing = pd.read_csv(LONG_OUTPUT_PATH)
     require_columns(
         existing,
-        ["mgrs_tile", "year", "month", "scene_status"],
+        ["nuts_id", "mgrs_tile", "year", "month", "scene_status"],
         "Existing output",
     )
     complete = existing.loc[
-        existing["scene_status"].isin(
-            {
-                "success",
-                "missing_sentinel_product",
-                "missing_monthly_par",
-                "no_strict_wheat",
-            }
-        )
+        existing["scene_status"].isin(COMPLETED_REGION_STATUSES)
     ]
     return {
-        (str(row.mgrs_tile), int(row.year), int(row.month))
+        (
+            str(row.nuts_id),
+            str(row.mgrs_tile),
+            int(row.year),
+            int(row.month),
+        )
         for row in complete.itertuples()
     }
 
 
-def replace_scene_rows(rows: list[dict]) -> None:
+def upsert_region_rows(rows: list[dict]) -> None:
     table = pd.DataFrame(rows)
-    scene = table.iloc[0]
+    key_columns = ["nuts_id", "mgrs_tile", "year", "month"]
     if LONG_OUTPUT_PATH.exists():
         existing = pd.read_csv(LONG_OUTPUT_PATH)
-        same_scene = (
-            (existing["mgrs_tile"].astype(str) == str(scene["mgrs_tile"]))
-            & (existing["year"].astype(int) == int(scene["year"]))
-            & (existing["month"].astype(int) == int(scene["month"]))
+        require_columns(
+            existing,
+            key_columns,
+            "Existing output",
         )
+        existing_keys = pd.MultiIndex.from_frame(
+            existing[key_columns].astype(
+                {
+                    "nuts_id": str,
+                    "mgrs_tile": str,
+                    "year": int,
+                    "month": int,
+                }
+            )
+        )
+        new_keys = pd.MultiIndex.from_frame(
+            table[key_columns].astype(
+                {
+                    "nuts_id": str,
+                    "mgrs_tile": str,
+                    "year": int,
+                    "month": int,
+                }
+            )
+        )
+        replaced = existing_keys.isin(new_keys)
         table = pd.concat(
-            [existing.loc[~same_scene], table],
+            [existing.loc[~replaced], table],
             ignore_index=True,
         )
     table = table.sort_values(
         ["mgrs_tile", "year", "month", "nuts_id"],
         kind="stable",
-    )
+    ).drop_duplicates(key_columns, keep="last")
     table.to_csv(LONG_OUTPUT_PATH, index=False)
 
 
@@ -1469,6 +1498,27 @@ def write_wide_output() -> None:
 
 def write_scene_log(scene_rows: list[dict]) -> None:
     scene = scene_rows[0]
+    full_scene = pd.DataFrame(scene_rows)
+    if LONG_OUTPUT_PATH.exists():
+        long_output = pd.read_csv(LONG_OUTPUT_PATH)
+        same_scene = (
+            (
+                long_output["mgrs_tile"].astype(str)
+                == str(scene["mgrs_tile"])
+            )
+            & (long_output["year"].astype(int) == int(scene["year"]))
+            & (long_output["month"].astype(int) == int(scene["month"]))
+        )
+        full_scene = long_output.loc[same_scene].copy()
+
+    scene_errors = (
+        full_scene["error"]
+        .dropna()
+        .astype(str)
+        .loc[lambda values: values.str.len() > 0]
+        .unique()
+        .tolist()
+    )
     log_row = pd.DataFrame(
         [
             {
@@ -1476,17 +1526,29 @@ def write_scene_log(scene_rows: list[dict]) -> None:
                 "year": scene["year"],
                 "month": scene["month"],
                 "scene_statuses": ";".join(
-                    sorted({row["scene_status"] for row in scene_rows})
+                    sorted(full_scene["scene_status"].astype(str).unique())
                 ),
-                "n_regions": len(scene_rows),
-                "n_successful_regions": sum(
-                    row["scene_status"] == "success" for row in scene_rows
+                "n_regions": len(full_scene),
+                "n_successful_regions": int(
+                    (full_scene["scene_status"] == "success").sum()
                 ),
-                "par_days_available": scene["par_days_available"],
-                "fapar_composites_available": scene[
-                    "fapar_composites_available"
-                ],
-                "error": scene["error"],
+                "par_days_available": int(
+                    pd.to_numeric(
+                        full_scene["par_days_available"],
+                        errors="coerce",
+                    )
+                    .fillna(0)
+                    .max()
+                ),
+                "fapar_composites_available": int(
+                    pd.to_numeric(
+                        full_scene["fapar_composites_available"],
+                        errors="coerce",
+                    )
+                    .fillna(0)
+                    .max()
+                ),
+                "error": " | ".join(scene_errors),
             }
         ]
     )
@@ -1614,7 +1676,7 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     regions = load_regions()
     bundle = load_checkpoint()
-    completed = existing_completed_scenes()
+    completed = existing_completed_region_months()
 
     print(f"Device: {bundle.device}")
     print(f"Loaded {len(regions)} NUTS3 regions")
@@ -1635,14 +1697,6 @@ def main() -> None:
 
     processed = 0
     for scene_index, (tile, year, month) in enumerate(scenes, start=1):
-        scene_key = (tile, year, month)
-        if scene_key in completed:
-            print(
-                f"[{scene_index}/{len(scenes)}] {tile} {year}-{month:02d}: "
-                "already complete"
-            )
-            continue
-
         tile_regions = regions.loc[regions["mgrs_tile"] == tile].copy()
         if tile_regions.empty:
             print(
@@ -1651,29 +1705,65 @@ def main() -> None:
             )
             continue
 
-        print(f"[{scene_index}/{len(scenes)}] {tile} {year}-{month:02d}")
+        if RESUME:
+            pending = tile_regions.apply(
+                lambda row: (
+                    str(row["nuts_id"]),
+                    str(row["mgrs_tile"]),
+                    int(year),
+                    int(month),
+                )
+                not in completed,
+                axis=1,
+            )
+            pending_regions = tile_regions.loc[pending].copy()
+        else:
+            pending_regions = tile_regions
+
+        if pending_regions.empty:
+            print(
+                f"[{scene_index}/{len(scenes)}] {tile} {year}-{month:02d}: "
+                f"all {len(tile_regions)} assigned regions already complete"
+            )
+            continue
+
+        print(
+            f"[{scene_index}/{len(scenes)}] {tile} {year}-{month:02d}: "
+            f"{len(pending_regions)} pending of "
+            f"{len(tile_regions)} assigned regions"
+        )
         try:
             rows = process_scene(
                 tile,
                 year,
                 month,
-                tile_regions,
+                pending_regions,
                 bundle,
             )
         except Exception as error:
             rows = missing_scene_rows(
-                tile_regions,
+                pending_regions,
                 year,
                 month,
                 "failed",
                 f"{type(error).__name__}: {error}",
             )
-            replace_scene_rows(rows)
+            upsert_region_rows(rows)
             write_scene_log(rows)
             raise
 
-        replace_scene_rows(rows)
+        upsert_region_rows(rows)
         write_scene_log(rows)
+        completed.update(
+            (
+                str(row["nuts_id"]),
+                str(row["mgrs_tile"]),
+                int(row["year"]),
+                int(row["month"]),
+            )
+            for row in rows
+            if row["scene_status"] in COMPLETED_REGION_STATUSES
+        )
         processed += 1
         print(
             f"  wrote {len(rows)} region rows; "
@@ -1682,7 +1772,7 @@ def main() -> None:
 
     if LONG_OUTPUT_PATH.exists():
         write_wide_output()
-    print(f"Processed {processed} new scenes")
+    print(f"Processed {processed} scene updates")
     print(f"Long output: {LONG_OUTPUT_PATH}")
     print(f"Wide output: {WIDE_OUTPUT_PATH}")
     print(f"Scene log: {SCENE_LOG_PATH}")

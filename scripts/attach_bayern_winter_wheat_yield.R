@@ -60,7 +60,7 @@ read_yield_file <- function(path) {
         .data[[yield_column]],
         na = c("", "/", "-", "NA"),
         locale = locale(decimal_mark = ",")
-      )
+      ) / 10
     )
 }
 
@@ -127,7 +127,7 @@ if (nrow(unmatched_rows) > 0) {
 }
 
 # Save the complete joined table before making the temporary modelling subset.
-# ww_yield remains in dt/ha; write_csv writes numeric decimals with a dot.
+# The source values are dt/ha; ww_yield is stored here in metric tons/ha.
 readr::write_csv(model_data, output_csv, na = "")
 
 message("Combined yearly yield rows: ", nrow(bayern_yield))
@@ -148,20 +148,23 @@ identifier_columns <- c(
 )
 
 calibrated_crop_pure_sif_columns <- paste0(
-  "SIF_",
-  months,
-  "_calibrated"
+  "SIF_", months, "_calibrated"
 )
-
 nirv_columns <- paste0("mean_nirv_", months)
+raw_all_sif_columns <- paste0("raw_all_SIF_", months)
+raw_ww05_sif_columns <- paste0("raw_ww05_SIF_", months)
 raw_ww10_sif_columns <- paste0("raw_ww10_SIF_", months)
+raw_ww30_sif_columns <- paste0("raw_ww30_SIF_", months)
 
 model_columns <- c(
   identifier_columns,
   calibrated_crop_pure_sif_columns,
-  "ww_pct",
   nirv_columns,
+  raw_all_sif_columns,
+  raw_ww05_sif_columns,
   raw_ww10_sif_columns,
+  raw_ww30_sif_columns,
+  "ww_pct",
   "ww_yield"
 )
 
@@ -174,199 +177,121 @@ if (length(missing_model_columns) > 0) {
   )
 }
 
-rows_without_yield <- sum(is.na(model_data$ww_yield))
-
+# Keep all rows and all missing values for inspection before choosing a
+# missing-data strategy.
 model_data <- model_data %>%
-  filter(!is.na(ww_yield)) %>%
-  select(all_of(model_columns))
+  select(all_of(model_columns)) %>%
+  arrange(year, nuts_id)
 
-message("Rows removed because ww_yield is NA: ", rows_without_yield)
-message("Temporary modelling rows: ", nrow(model_data))
-message("The temporary reduced model_data object has not been saved.")
+message("Reduced modelling rows retained for NA inspection: ", nrow(model_data))
 
 print(summary(model_data$ww_yield))
 
 message("Missing values by retained column:")
-sort(colSums(is.na(model_data)))
 
-model_data <- model_data %>% select(nuts_id, nuts3, mgrs_tile, year,
-                                    SIF_March_calibrated, SIF_April_calibrated, SIF_May_calibrated, SIF_June_calibrated, SIF_July_calibrated,
-                                    mean_nirv_March, mean_nirv_April, mean_nirv_May, mean_nirv_June, mean_nirv_July,
-                                    raw_ww10_SIF_March, raw_ww10_SIF_May, raw_ww10_SIF_June, raw_ww10_SIF_July,
-                                    ww_pct, ww_yield)
-colnames(model_data)
+model_data <- model_data %>% filter(!is.na(ww_yield))
+
+print(sort(colSums(is.na(model_data))))
 
 #-------------------------------------------------------------------------------
-library(tidyverse)
+# Seasonal raw-SIF summaries and training-only mean imputation
 
-months <- c("March", "April", "May", "June", "July")
+row_mean_observed_months <- function(data, columns) {
+  values <- data %>%
+    select(all_of(columns)) %>%
+    as.matrix()
 
-identifier_columns <- c(
-  "nuts_id",
-  "nuts3",
-  "mgrs_tile",
-  "year"
-)
+  available <- is.finite(values)
+  n_available <- rowSums(available)
+  value_sum <- rowSums(ifelse(available, values, 0))
 
-crop_pure_columns <- paste0("SIF_", months, "_calibrated")
-nirv_columns <- paste0("mean_nirv_", months)
-raw_sif_columns <- paste0("raw_ww10_SIF_", months)
-
-selected_columns <- c(
-  identifier_columns,
-  crop_pure_columns,
-  nirv_columns,
-  raw_sif_columns,
-  "ww_pct",
-  "ww_yield"
-)
-
-model_data <- model_data %>%
-  select(all_of(selected_columns))
-
-crop_pure_matrix <- model_data %>%
-  select(all_of(crop_pure_columns)) %>%
-  as.matrix()
-
-raw_sif_matrix <- model_data %>%
-  select(all_of(raw_sif_columns)) %>%
-  as.matrix()
-
-# Use only months for which both raw and crop-pure SIF are available.
-# This gives the two seasonal predictors identical temporal support.
-matched_month_mask <- is.finite(raw_sif_matrix) &
-  is.finite(crop_pure_matrix)
-
-n_raw_months_available <- rowSums(is.finite(raw_sif_matrix))
-n_matched_months <- rowSums(matched_month_mask)
-
-raw_matched_sum <- rowSums(
-  ifelse(matched_month_mask, raw_sif_matrix, 0)
-)
-
-crop_pure_matched_sum <- rowSums(
-  ifelse(matched_month_mask, crop_pure_matrix, 0)
-)
-
-raw_seasonal_sif_matched <- ifelse(
-  n_matched_months > 0,
-  raw_matched_sum / n_matched_months,
-  NA_real_
-)
-
-crop_pure_seasonal_sif_matched <- ifelse(
-  n_matched_months > 0,
-  crop_pure_matched_sum / n_matched_months,
-  NA_real_
-)
-
-matched_months_used <- apply(
-  matched_month_mask,
-  1,
-  function(available) {
-    used <- months[available]
-    
-    if (length(used) == 0) {
-      return(NA_character_)
-    }
-    
-    paste(used, collapse = ";")
-  }
-)
-
-seasonal_model_data <- model_data %>%
-  mutate(
-    n_raw_months_available = n_raw_months_available,
-    n_matched_months = n_matched_months,
-    matched_months_used = matched_months_used,
-    raw_seasonal_sif_matched = raw_seasonal_sif_matched,
-    crop_pure_seasonal_sif_matched =
-      crop_pure_seasonal_sif_matched
-  ) %>%
-  select(
-    all_of(identifier_columns),
-    raw_seasonal_sif_matched,
-    crop_pure_seasonal_sif_matched,
-    n_raw_months_available,
-    n_matched_months,
-    matched_months_used,
-    all_of(nirv_columns),
-    ww_pct,
-    ww_yield
-  )
-
-# Primary dataset: at least one matched month.
-seasonal_model_data_min1 <- seasonal_model_data %>%
-  filter(n_matched_months >= 1)
-
-# Sensitivity dataset: at least two matched months.
-seasonal_model_data_min2 <- seasonal_model_data %>%
-  filter(n_matched_months >= 2)
-
-message("All region-year rows: ", nrow(seasonal_model_data))
-message(
-  "Rows with >= 1 matched month: ",
-  nrow(seasonal_model_data_min1)
-)
-message(
-  "Rows with >= 2 matched months: ",
-  nrow(seasonal_model_data_min2)
-)
-
-print(table(seasonal_model_data$n_matched_months, useNA = "ifany"))
-print(colSums(is.na(seasonal_model_data_min2)))
-
-#-------------------------------------------------------------------------------
-
-nirv_columns <- paste0(
-  "mean_nirv_",
-  c("March", "April", "May", "June", "July")
-)
-
-train_data <- seasonal_model_data_min1 %>%
-  filter(year %in% 2019:2022)
-
-test_data <- seasonal_model_data_min1 %>%
-  filter(year == 2024)
-
-# Record which NIRv values were originally missing.
-for (column in nirv_columns) {
-  missing_column <- paste0(column, "_missing")
-  
-  train_data[[missing_column]] <- as.integer(
-    is.na(train_data[[column]])
-  )
-  
-  test_data[[missing_column]] <- as.integer(
-    is.na(test_data[[column]])
-  )
+  ifelse(n_available > 0, value_sum / n_available, NA_real_)
 }
 
-# Calculate month-specific NIRv means from training data only.
-nirv_training_means <- train_data %>%
+# Calculate these before imputation so each seasonal value represents only the
+# raw OCO-2 months genuinely observed for that region-year.
+model_data$raw_all_seasonal_sif <- row_mean_observed_months(
+  model_data,
+  raw_all_sif_columns
+)
+model_data$raw_ww05_seasonal_sif <- row_mean_observed_months(
+  model_data,
+  raw_ww05_sif_columns
+)
+model_data$raw_ww10_seasonal_sif <- row_mean_observed_months(
+  model_data,
+  raw_ww10_sif_columns
+)
+model_data$raw_ww30_seasonal_sif <- row_mean_observed_months(
+  model_data,
+  raw_ww30_sif_columns
+)
+
+raw_seasonal_columns <- c(
+  "raw_all_seasonal_sif",
+  "raw_ww05_seasonal_sif",
+  "raw_ww10_seasonal_sif",
+  "raw_ww30_seasonal_sif"
+)
+
+imputation_columns <- c(
+  calibrated_crop_pure_sif_columns,
+  nirv_columns,
+  raw_all_sif_columns,
+  raw_ww05_sif_columns,
+  raw_ww10_sif_columns,
+  raw_ww30_sif_columns,
+  raw_seasonal_columns,
+  "ww_pct"
+)
+
+# Estimate imputation values from training years only. These same fixed means
+# are applied to 2024 without using any 2024 values to estimate them.
+training_imputation_means <- model_data %>%
+  filter(year %in% 2019:2022) %>%
   summarise(
     across(
-      all_of(nirv_columns),
+      all_of(imputation_columns),
       ~ mean(.x, na.rm = TRUE)
     )
   )
 
-# Apply the training means to both training and test data.
-for (column in nirv_columns) {
-  imputation_value <- nirv_training_means[[column]]
-  
-  train_data[[column]][is.na(train_data[[column]])] <-
-    imputation_value
-  
-  test_data[[column]][is.na(test_data[[column]])] <-
-    imputation_value
+invalid_imputation_columns <- imputation_columns[
+  !is.finite(
+    unlist(
+      training_imputation_means[1, imputation_columns],
+      use.names = FALSE
+    )
+  )
+]
+
+if (length(invalid_imputation_columns) > 0) {
+  stop(
+    "No finite 2019-2022 mean is available for: ",
+    paste(invalid_imputation_columns, collapse = ", ")
+  )
 }
 
-print(nirv_training_means)
-sort(colSums(is.na(train_data)))
-sort(colSums(is.na(test_data)))
+missing_before_imputation <- sort(colSums(is.na(model_data)))
+
+for (column in imputation_columns) {
+  missing <- is.na(model_data[[column]])
+  model_data[[column]][missing] <- training_imputation_means[[column]]
+}
+
+message("Training-only means used for predictor imputation:")
+print(training_imputation_means)
+
+message("Missing values before imputation:")
+print(missing_before_imputation)
+
+message("Missing values after predictor imputation:")
+print(sort(colSums(is.na(model_data))))
 
 
-final_df <- rbind(train_data, test_data)
+write_csv(model_data, 'data/winter_wheat_yield_model/ww_model_data.csv')
 
-write_csv(final_df, 'data/winter_wheat_yield_model/ww_model_data.csv')
+
+
+
+

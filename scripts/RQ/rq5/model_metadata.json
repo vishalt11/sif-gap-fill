@@ -1,0 +1,55 @@
+{
+  "research_question": "To what extent does high-resolution, crop-pure enhanced SIF improve winter-wheat yield prediction RMSE compared with mixed-pixel SIF derived from raw satellite observations?",
+  "input_file": "data\\winter_wheat_yield_model\\ww_model_data.csv",
+  "output_directory": "data\\winter_wheat_yield_model\\rq5_results",
+  "target": "ww_yield",
+  "target_unit": "metric tonnes/ha",
+  "train_years": [
+    2019,
+    2020,
+    2021,
+    2022
+  ],
+  "test_year": 2024,
+  "n_train": 197,
+  "n_test": 48,
+  "model": "RandomForestRegressor",
+  "fixed_model_settings": {
+    "n_estimators": 500,
+    "max_depth": 5,
+    "min_samples_leaf": 3,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "shared_control_feature_columns": [],
+  "selected_model_keys": [
+    "crop_pure_monthly",
+    "raw_ww05_monthly",
+    "raw_all_monthly"
+  ],
+  "selected_model_features": {
+    "crop_pure_monthly": [
+      "SIF_March_calibrated",
+      "SIF_April_calibrated",
+      "SIF_May_calibrated",
+      "SIF_June_calibrated",
+      "SIF_July_calibrated"
+    ],
+    "raw_ww05_monthly": [
+      "raw_ww05_SIF_March",
+      "raw_ww05_SIF_April",
+      "raw_ww05_SIF_May",
+      "raw_ww05_SIF_June",
+      "raw_ww05_SIF_July"
+    ],
+    "raw_all_monthly": [
+      "raw_all_SIF_March",
+      "raw_all_SIF_April",
+      "raw_all_SIF_May",
+      "raw_all_SIF_June",
+      "raw_all_SIF_July"
+    ]
+  },
+  "bootstrap_repetitions": 10000,
+  "random_seed": 42
+}

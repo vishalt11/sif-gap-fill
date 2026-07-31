@@ -4,6 +4,7 @@ scripts/tmp
 scripts/config.json
 scripts/pygeodes-config.json
 scripts/kaggle_scripts
+scripts/__pycache__/
 pygeodes-config.json
 config.json
 scripts/quickstart.ipynb
