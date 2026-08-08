@@ -19,6 +19,7 @@ SHARD_PATH: Path | None = None
 CHIP_INDEX = 0
 
 OUTPUT_DIR = DATA_DIR / "visualizations"
+PDF_OUTPUT_DIR = Path("eda_images/pdf")
 SHOW_FIGURES = True
 
 
@@ -190,7 +191,7 @@ def plot_channels(
     for axis in axes[n_panels:]:
         axis.axis("off")
 
-    figure.suptitle(f"Sentinel-2 CNN predictors: {chip_id}", fontsize=16)
+    figure.suptitle("MultiSIF-Sentinel-2 predictors", fontsize=16)
     figure.savefig(output_path, dpi=180, bbox_inches="tight")
 
     if SHOW_FIGURES:
@@ -275,12 +276,13 @@ def main() -> None:
         )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     safe_chip_id = "".join(
         character if character.isalnum() or character in "-_" else "_"
         for character in chip_id
     )
 
-    channel_output = OUTPUT_DIR / f"{safe_chip_id}_channels.png"
+    channel_output = PDF_OUTPUT_DIR / f"{safe_chip_id}_channels.pdf"
     mask_output = OUTPUT_DIR / f"{safe_chip_id}_footprint_masks.png"
 
     plot_channels(

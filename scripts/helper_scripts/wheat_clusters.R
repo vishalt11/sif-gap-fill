@@ -50,7 +50,9 @@ plot(high_wheat)
 
 writeRaster(high_wheat, 'data/nw_ww_gt40.tif')
 
+r <- rast('data/tifs/bavaria_ww_gt40.tif')
 
+plot(r)
 #-------------------------------------------------------------------------------
 # Where are spatially coherent, high-density wheat systems that form real farming regions?
 # High Density Wheat farm cluster

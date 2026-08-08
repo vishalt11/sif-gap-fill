@@ -1770,13 +1770,13 @@ nuts3_regions_50pct_in_mgrs <- nuts3_regions_50pct_in_mgrs %>%
 stopifnot(!anyDuplicated(nuts3_regions_50pct_in_mgrs$nuts_id))
 #---
 
-saveRDS(nuts3_regions_50pct_in_mgrs, 'nuts3_regions_50pct_in_mgrs.rds')
+#saveRDS(nuts3_regions_50pct_in_mgrs, 'nuts3_regions_50pct_in_mgrs.rds')
 
 mgrs_nuts3_50pct_plot <- ggplot() +
   geom_sf(data = bavaria_nuts1, fill = "grey96", color = "grey55", linewidth = 0.4) +
   geom_sf(data = bavaria_nuts3, fill = NA, color = "grey78", linewidth = 0.18) +
   geom_sf(data = nuts3_regions_50pct_in_mgrs, aes(fill = mgrs_tile), color = "#1f78b4", linewidth = 0.25, alpha = 0.65) +
-  geom_sf(data = target_mgrs_bboxes, fill = NA, color = "#e31a1c", linewidth = 0.9) +
+  geom_sf(data = target_mgrs_bboxes, fill = NA, color = "#e31a1c", linewidth = 0.5) +
   geom_sf_text(data = target_mgrs_labels, aes(label = mgrs_tile), color = "#e31a1c", size = 3.5, fontface = "bold") +
   coord_sf(ylim = c(47, 51), xlim = c(8, 14), expand = FALSE) +
   labs(title = "Bavaria NUTS 3 Regions With At Least 50 Percent Area Inside Selected MGRS Tiles", fill = "MGRS tile", x = NULL, y = NULL) +
@@ -1784,6 +1784,8 @@ mgrs_nuts3_50pct_plot <- ggplot() +
   theme(panel.grid.major = element_line(linewidth = 0.15, color = "grey85"), legend.position = "right")
 
 print(mgrs_nuts3_50pct_plot)
+
+ggsave("eda_images/pdf/mgrs_nuts3_50pct_plot.pdf", plot = mgrs_nuts3_50pct_plot, width = 10, height = 6, units = "in")
 
 #-------------------------------------------------------------------------------
 
@@ -1869,3 +1871,18 @@ colnames(df)
 
 df <-  read_csv('data/winter_wheat_yield_model/raw_mixed_sif/nuts3_crop_pure_and_raw_mixed_sif_predictors.csv')
 sort(colSums(is.na(df)))
+
+#-------------------------------------------------------------------------------
+
+df <- readRDS('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.rds')
+
+
+
+colnames(df)
+
+
+
+
+
+
+
