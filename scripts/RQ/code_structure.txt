@@ -1,0 +1,241 @@
+MODEL AND DATA-PREPARATION STRUCTURE
+====================================
+
+The model names and overall results are recorded in:
+
+    RQ/rq2/rq2_comp_table.csv
+
+The overall model family tree is correct. However, it is important to
+distinguish the common conceptual data lineage from the exact saved dataset
+used by each model. Several models use earlier snapshots with different
+filtering, measurement modes, quality flags and sample counts.
+
+
+1. Common raw OCO-2 SIF extraction
+----------------------------------
+
+process_nc4_nonsubset_corrected.R is the common raw-data extraction and
+initial cleaning script. It extracts:
+
+    Daily_SIF_740nm
+    Daily_SIF_757nm
+    Daily_SIF_771nm
+    SIF uncertainty variables
+    footprint corner coordinates
+    quality flags, measurement mode and meteorological metadata
+
+Important correction: this is not a 740 nm-only script. The legacy 740 nm
+model branches select Daily_SIF_740nm later in their pipelines.
+
+Principal outputs include:
+
+    data/SIF_1_12.rds
+    data/sif_sf_1_12_cleaned.rds
+    data/sif_sf_2_7_cleaned.rds
+
+
+2. Current SIF target construction
+----------------------------------
+
+sif_data_builder.R contains the current target-construction and study-subset
+logic. It creates the combined MODIS-style SIF target:
+
+    target_modis_sif =
+        (Daily_SIF_757nm + 1.5 * Daily_SIF_771nm) / 2
+
+It also applies or records:
+
+    negative-SIF uncertainty classification
+    broad target-range checks
+    quality-flag and measurement-mode filtering
+    February-July selection
+    study-tile assignment
+    Sentinel-2 product and temporal alignment
+    in-range/out-of-range date status
+
+The current SA4km workflow uses:
+
+    data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv
+
+Not every model used this exact final dataset. Older MODIS and multi-SIF
+models use earlier intermediate datasets created through
+extreme_sif_smoothing.R and sections of sif_data_QnA.R. Their target-building
+logic is broadly similar, but the exact filters and retained observations
+differ.
+
+
+3. Area-to-point MLP
+--------------------
+
+Full lineage:
+
+    sen2_processing/extract_wasp_sif_area_to_point_nonveg_masked.R
+        -> prepare_area_to_point_mlp_batches.py
+        -> kaggle_scripts/train_area_to_point_mlp_from_batches.py
+
+This branch uses Daily_SIF_740nm and pixel-level Sentinel-2 predictors. It does
+not use the newer 757/771 nm combined-target uncertainty treatment.
+
+The batch-preparation script removes the outer 0.1 percent SIF quantiles by
+default unless --keep-extreme-sif-outliers is supplied. Therefore, this branch
+should not be described as having no outlier removal without checking the
+actual command used to prepare the batches.
+
+
+4. Spatial Aggregate 4 km (SA4km)
+---------------------------------
+
+Training pipeline:
+
+    spatial_grouping.R
+        -> prepare_sentinel2_spatial_aggregate_cnn_chips.py
+        -> kaggle_scripts/spatial-aggregate-updated-inout-v1.ipynb
+
+spatial_grouping.R assigns SIF observations to fixed 4 km cells separately by
+tile, date and measurement mode. Cells with sufficient footprints receive one
+aggregated target calculated from the mean footprint SIF.
+
+External native-footprint evaluation:
+
+    prepare_sentinel2_native_footprint_inference_chips.py
+        -> kaggle_scripts/native-sif-footprint-inference.ipynb
+
+This is an external evaluation branch of the trained SA4km model, not a
+separately trained model.
+
+
+5. Sentinel-2 multi-SIF model
+-----------------------------
+
+Pipeline:
+
+    diagnose_sentinel2_multisif_density_cluster_chips.R
+        -> prepare_sentinel2_multisif_cnn_chips.py
+        -> kaggle_scripts/multisif-sen2.ipynb
+
+Each Sentinel-2 chip contains multiple separate OCO-2 footprint masks and SIF
+targets. The targets are not spatially averaged into one SIF label. A loss is
+calculated for every valid footprint, and footprint losses are averaged within
+the chip before averaging across the batch.
+
+
+6. MODIS 24 x 24 multi-SIF model
+--------------------------------
+
+Pipeline:
+
+    diagnose_multisif_density_cluster_chips.R
+        -> prepare_modis_multisif_cnn_chips.py
+        -> kaggle_scripts/modis-24x24.ipynb
+
+As with the Sentinel-2 multi-SIF model, every chip carries several separate
+footprint masks and targets. This is multi-footprint supervision, not spatial
+aggregation of the target.
+
+
+7. MODIS 16 x 16 combined-SIF model
+-----------------------------------
+
+Pipeline:
+
+    prepare_modis_singlesif_cnn_chips.py
+        -> kaggle_scripts/modis-3target-16x16.ipynb
+
+The prepared chips carry all three possible targets:
+
+    Daily_SIF_757nm
+    Daily_SIF_771nm
+    target_modis_sif
+
+The notebook selects which target and matching acceptance flag to use. The
+reported modis_16x16_modis_sif result uses target_modis_sif.
+
+
+8. MODIS 16 x 16 legacy 740 nm model
+------------------------------------
+
+Pipeline:
+
+    prepare_modis_cnn_chips.py
+        -> kaggle_scripts/modis-cnn-740nm-no-correction-no-active-crop.ipynb
+
+This branch uses Daily_SIF_740nm. It does not use the newer combined-target
+uncertainty treatment or the active-crop channel. It uses the older predictor
+representation, including crop-fraction, month, latitude and longitude
+channels.
+
+The phrase "without active-crop channel/correction" is clearer than "without
+active protection."
+
+
+9. Polygon-means XGBoost and Random Forest
+------------------------------------------
+
+Final model input:
+
+    data/pmeans_model_data/
+        model_data_pmeans_6tiles_with_modis_sif_fapar_par_cleaned.csv
+
+Model notebook:
+
+    kaggle_scripts/pmeans-xgboost-rf.ipynb
+
+Historical construction lineage:
+
+    model_data_pmeans_6tiles.csv
+        -> join target_modis_sif and current metadata in sif_data_QnA.R
+        -> model_data_pmeans_extract_fapar_par_parallel.R
+        -> complete-row cleaning in sif_data_QnA.R
+        -> model_data_pmeans_6tiles_with_modis_sif_fapar_par_cleaned.csv
+
+The original polygon-means table already contained Sentinel-2 polygon-mean
+spectral indices and crop-composition statistics. The combined SIF target,
+FAPAR, PAR, APAR and active-crop information were attached later.
+
+These are scalar tabular regression models: one table row represents one OCO-2
+footprint, and its raster predictors are represented by polygon summary values
+rather than spatial image channels.
+
+
+10. Interpretation of rq2_comp_table.csv
+-----------------------------------------
+
+rq2_comp_table.csv is a valid summary of the overall model and evaluation
+configurations. It is not a perfectly controlled comparison of architecture
+alone because its rows can differ in:
+
+    SIF target: Daily_SIF_740nm versus target_modis_sif
+    spatial support: native footprint versus 4 km aggregate
+    predictor source: MODIS versus Sentinel-2
+    target filtering and reliability criteria
+    quality flags and measurement modes
+    train/validation/test observations and sample counts
+    single-footprint, multi-footprint or spatially aggregated supervision
+
+The table should therefore be described as comparing model configurations,
+predictor representations and supervision strategies. It should not be used
+to claim that architecture alone caused every performance difference.
+
+The cleanest direct architecture comparison is PolyMeans XGBoost versus
+PolyMeans Random Forest because both models use the same input table, target
+and test observations.
+
+Terminology summary:
+
+    Single-SIF:
+        one footprint mask and one target per chip
+
+    Multi-SIF:
+        multiple individual footprint masks and targets per chip; no target
+        averaging
+
+    Spatial Aggregate 4 km:
+        multiple footprints averaged into one 4 km supervision target
+
+    Native-footprint inference:
+        external evaluation of the trained SA4km model at original OCO-2
+        footprint support
+
+    Polygon means:
+        one tabular row per footprint with raster predictors summarized over
+        the footprint

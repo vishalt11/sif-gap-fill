@@ -1,4 +1,4 @@
-model,Validation Calibration,SIF,n_polygons,rmse,mae,bias,r2,pearson_r
+model,Validation Calibration,SIF,test_n,rmse,mae,bias,r2,pearson_r
 Spatial Aggregate 4km (SA4km),calibrated,target_modis_sif,931,0.07014592125,0.05274860364,-0.01494527342,0.7613432339,-
 (SA4km) OCO-2 Native Inference,calibrated,target_modis_sif,2000,0.1700951309,0.1300168283,-0.003410517517,0.3732114646,0.6124195257
 "(SA4km) OCO-2 Native Inference SIF [0,0.75)",calibrated,target_modis_sif,1829,0.1433528595,0.1134836317,-0.005367350685,0.3494411107,0.6127136283
