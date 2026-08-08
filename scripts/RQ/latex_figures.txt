@@ -352,3 +352,76 @@
     \caption{to be filled}
     \label{fig:paired_regional_error_improvement}
 \end{figure}
+
+
+other figures
+----------------------------------------------
+% misc 1
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/hzs_mgrs_nuts3_50pct_plot.pdf}}
+
+    \caption{to be filled}
+    \label{fig:hzs_mgrs_nuts3}
+\end{figure}
+
+----------------------------------------------
+% misc 2
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/s2_6km_T32UPE_20190219_db10_chunk1_channels.pdf}}
+
+    \caption{to be filled}
+    \label{fig:sentinel2_example_channels}
+\end{figure}
+----------------------------------------------
+% misc 3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/sif_centroids_mgrs_tile_boundaries.pdf}}
+
+    \caption{to be filled}
+    \label{fig:sif_centroids_mgrs_boundaries}
+\end{figure}
+----------------------------------------------
+% misc 4
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/sif_phase_angle_and_value_satellite_2022-05-07.pdf}}
+
+    \caption{to be filled}
+    \label{fig:sif_phase_angle_satellite_value}
+\end{figure}
+----------------------------------------------
+% misc 5
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/winter_wheat_fraction_2024_1km.pdf}}
+
+    \caption{to be filled}
+    \label{fig:winter_wheat_fraction_2024}
+\end{figure}

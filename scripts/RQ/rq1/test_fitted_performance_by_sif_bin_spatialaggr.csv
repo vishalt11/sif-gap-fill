@@ -1,8 +1,0 @@
-,group_variable,group_value,n,observed_min,observed_max,observed_mean,calibrated_predicted_mean,calibrated_rmse,calibrated_mae,calibrated_bias,calibrated_r2
-0,sif_bin,"[-0.5,-0.25)",0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
-1,sif_bin,"[-0.25,0)",0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
-2,sif_bin,"[0,0.25)",274,0.013132,0.249751,0.150923,0.176055,0.065806,0.043674,0.025132,-0.247095
-3,sif_bin,"[0.25,0.5)",545,0.250054,0.498309,0.363645,0.345532,0.060467,0.047945,-0.018113,0.17711
-4,sif_bin,"[0.5,0.75)",112,0.500075,0.72,0.564298,0.466721,0.111874,0.098321,-0.097577,-3.810071
-5,sif_bin,"[0.75,1)",0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
-6,sif_bin,"[1,1.25]",0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
