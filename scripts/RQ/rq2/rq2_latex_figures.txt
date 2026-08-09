@@ -1,0 +1,135 @@
+-----------------------------------------
+
+% Figure rq2.1
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_4km_spatial.pdf}}
+        \caption{4 km Spatial-Aggregate}
+        \label{fig:rq2_obv_pred_4km}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_multi_sif.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:rq2_obv_pred_multisif}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_rf.pdf}}
+        \caption{PolyMean Random Forest}
+        \label{fig:rq2_obv_pred_rf}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_xgboost.pdf}}
+        \caption{PolyMean XGBoost}
+        \label{fig:rq2_obv_pred_xgboost}
+    \end{subfigure}
+
+    \caption{to fill caption}
+    \label{fig:rq2_observed_predicted_comparison}
+\end{figure}
+
+
+-----------------------------------------
+% Figure rq2.2
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.95\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.25\textheight,
+            keepaspectratio
+        ]{\detokenize{img/2_example_predicted_sif_map_and_ndvi_4km_spatial_aggregate.pdf}}
+        \caption{4 km Spatial-Aggregate}
+        \label{fig:example_sif_ndvi_4km}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.95\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.25\textheight,
+            keepaspectratio
+        ]{\detokenize{img/2_example_predicted_sif_map_and_ndvi_multisif.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:example_sif_ndvi_multisif}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.95\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.25\textheight,
+            keepaspectratio
+        ]{\detokenize{img/2_example_predicted_sif_map_and_ndvi_xgboost.pdf}}
+        \caption{PolyMean XGBoost}
+        \label{fig:example_sif_ndvi_xgboost}
+    \end{subfigure}
+
+    \caption{to fill caption}
+    \label{fig:example_predicted_sif_ndvi_comparison}
+\end{figure}
+
+
+-----------------------------------------
+% Figure rq2.3
+
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_4km_spatial_test_residual_distribution.pdf}}
+        \caption{4 km Spatial-Aggregate}
+        \label{fig:residual_4km_spatial}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_multi_sif_test_residual_distribution.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:residual_multisif}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_rf_test_residual_distribution.pdf}}
+        \caption{PolyMean Random Forest}
+        \label{fig:residual_rf}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_xgboost_test_residual_distribution.pdf}}
+        \caption{PolyMean XGBoost}
+        \label{fig:residual_xgboost}
+    \end{subfigure}
+
+    \caption{Test residual distributions for the four evaluated SIF gap-filling models.}
+    \label{fig:test_residual_distributions}
+\end{figure}

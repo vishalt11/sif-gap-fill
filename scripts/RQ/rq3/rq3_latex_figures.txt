@@ -1,0 +1,50 @@
+-----------------------------------------
+% Figure rq3.1
+
+\begin{figure}[htbp]
+    \centering
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_4km_spatial.pdf}}
+        \caption{4 km Spatial-Aggregate}
+        \label{fig:rq3_obv_pred_4km}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_multi_sif.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:rq3_obv_pred_multisif}
+    \end{subfigure}
+
+    \caption{to be filled}
+    \label{fig:rq3_observed_predicted_comparison}
+\end{figure}
+
+-----------------------------------------
+% Figure rq3.2
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{%
+        \detokenize{img/target_and_residual_stability_comparison.pdf}}
+
+    \caption{to be filled}
+    \label{fig:target_residual_stability_comparison}
+\end{figure}
+
+------------------------------------------
+% Figure rq3.3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{%
+        \detokenize{img/effect_of_footprint_count_on_stability_and_rmse.pdf}}
+
+    \caption{to be filled}
+    \label{fig:footprint_count_stability_rmse}
+\end{figure}
+

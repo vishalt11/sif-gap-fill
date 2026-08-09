@@ -1,0 +1,45 @@
+--------------------------------------------
+% Figure rq5.1
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/observed_vs_predicted_yield_models.pdf}}
+
+    \caption{to be filled}
+    \label{fig:observed_predicted_yield_models}
+\end{figure}
+
+--------------------------------------------
+% Figure rq5.2
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/bootstrap_rmse_improvement_distribution.pdf}}
+
+    \caption{to be filled}
+    \label{fig:bootstrap_rmse_improvement}
+\end{figure}
+
+--------------------------------------------
+% Figure rq5.3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/paired_regional_absolute_error_improvement.pdf}}
+
+    \caption{to be filled}
+    \label{fig:paired_regional_error_improvement}
+\end{figure}
+

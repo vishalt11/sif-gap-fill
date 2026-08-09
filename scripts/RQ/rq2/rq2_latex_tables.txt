@@ -1,0 +1,40 @@
+
+-------------------------------------------
+% table rq2.1 rq2 comp table
+
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.10}
+
+\caption{Comparison of the calibration status, SIF target, sample size, and fitted performance of the evaluated RQ2 model configurations.}
+\label{tab:rq2_model_comparison}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrrr}
+\hline
+\textbf{Model} & \textbf{Calibration} & \textbf{SIF target} & \textbf{$n$} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+Spatial Aggregate 4 km (SA4km) & Calibrated & MODIS SIF & 931 & 0.0701 & 0.0527 & $-0.0149$ & 0.761 & -- \\
+SA4km OCO-2 native inference & Calibrated & MODIS SIF & 2,000 & 0.1701 & 0.1300 & $-0.0034$ & 0.373 & 0.612 \\
+SA4km OCO-2 native, SIF $[0,0.75)$ & Calibrated & MODIS SIF & 1,829 & 0.1434 & 0.1135 & $-0.0054$ & 0.349 & 0.613 \\
+\hline
+MultiSIF-Sen2 & Calibrated & MODIS SIF & 6,411 & 0.1603 & 0.1223 & $-0.0166$ & 0.418 & -- \\
+MODIS $24\times24$ & Calibrated & MODIS SIF & 2,187 & 0.1679 & 0.1293 & 0.0010 & 0.349 & -- \\
+MODIS $16\times16$ & Calibrated & MODIS SIF & 22,149 & 0.1656 & 0.1255 & 0.0011 & 0.457 & -- \\
+MODIS $16\times16$ & Uncalibrated & 740 nm SIF & 26,905 & 0.2693 & 0.2107 & 0.0588 & 0.350 & -- \\
+MLP area-to-point & Uncalibrated & 740 nm SIF & 5,291 & 0.2503 & 0.1912 & $-0.0053$ & 0.415 & 0.646 \\
+\hline
+PolyMeans: XGBoost & Uncalibrated & MODIS SIF & 5,889 & 0.1650 & 0.1274 & 0.0125 & 0.453 & 0.675 \\
+PolyMeans: Random Forest & Uncalibrated & MODIS SIF & 5,889 & 0.1689 & 0.1311 & 0.0146 & 0.426 & 0.656 \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\footnotesize
+\textit{Note:} A dash indicates that Pearson's correlation was not reported. The number of evaluated observations differs among configurations because the models use different target supports and evaluation datasets.
+}
+\end{table}
+
+

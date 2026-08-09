@@ -1,0 +1,30 @@
+-------------------------------------------
+% table rq4.1 perf by hzs zones
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.10}
+
+\caption{Calibrated fitted performance by individual hardiness zone.}
+\label{tab:performance_by_hardiness_zone}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrr}
+\hline
+\textbf{HZS} & \textbf{$n$} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Dates} & \textbf{Tiles} \\
+\hline
+7a & 151   & $-0.0496$ & 0.7544 & 0.2477 & 0.2337 & 0.0703 & 0.0518 & $-0.0140$ & 0.8681 & 30  & 1 \\
+7b & 894   & $-0.0347$ & 0.7462 & 0.3190 & 0.3038 & 0.0690 & 0.0517 & $-0.0153$ & 0.8176 & 63  & 5 \\
+8a & 4,458 & $-0.0937$ & 0.8291 & 0.3066 & 0.2983 & 0.0772 & 0.0585 & $-0.0083$ & 0.7812 & 201 & 9 \\
+8b & 1,502 & $-0.0891$ & 0.8783 & 0.3155 & 0.3021 & 0.0803 & 0.0608 & $-0.0134$ & 0.7553 & 169 & 8 \\
+9a & 58    & $-0.0040$ & 0.7881 & 0.4114 & 0.3842 & 0.0946 & 0.0697 & $-0.0272$ & 0.7752 & 14  & 2 \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\footnotesize
+\textit{Note:} HZS denotes the hardiness zone. Predicted means and performance statistics refer to calibrated predictions. Dates and tiles indicate the number of distinct observation dates and spatial tiles represented within each zone.
+}
+\end{table}

@@ -1,0 +1,54 @@
+-------------------------------------------
+% table rq1.1 combined perf by sif bin + test perf by sif bin + external native perf by sif bin
+
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.08}
+
+\caption{Calibrated model performance by observed SIF interval for the combined nine-tile dataset, the held-out nine-tile test set, and the external native-footprint evaluation over two additional tiles.}
+\label{tab:rq1_performance_by_sif_bin}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\hline
+\multicolumn{9}{l}{\textbf{A. Combined training, validation and test data: nine tiles}} \\
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+$[-0.25,0)$   & 66    & $-0.0246$ & 0.0851 & 0.1264 & 0.1097 & 0.1097 & $-32.616$ & -- \\
+$[0,0.25)$    & 2,920 & 0.1373 & 0.1560 & 0.0645 & 0.0466 & 0.0187 & $-0.028$ & -- \\
+$[0.25,0.50)$ & 3,846 & 0.3721 & 0.3631 & 0.0662 & 0.0520 & $-0.0090$ & 0.091 & -- \\
+$[0.50,0.75)$ & 1,076 & 0.5712 & 0.4718 & 0.1187 & 0.1008 & $-0.0995$ & $-3.380$ & -- \\
+$[0.75,1.00)$ & 12    & 0.7873 & 0.5149 & 0.2756 & 0.2724 & $-0.2724$ & $-56.094$ & -- \\
+\hline
+
+\multicolumn{9}{l}{\textbf{B. Held-out test data: nine tiles}} \\
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+$[0,0.25)$    & 274 & 0.1509 & 0.1761 & 0.0658 & 0.0437 & 0.0251 & $-0.247$ & -- \\
+$[0.25,0.50)$ & 545 & 0.3636 & 0.3455 & 0.0605 & 0.0479 & $-0.0181$ & 0.177 & -- \\
+$[0.50,0.75)$ & 112 & 0.5643 & 0.4667 & 0.1119 & 0.0983 & $-0.0976$ & $-3.810$ & -- \\
+\hline
+
+\multicolumn{9}{l}{\textbf{C. External native-footprint evaluation: two additional tiles}} \\
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+$(-\infty,-0.25)$ & 4   & $-0.2689$ & 0.3181 & 0.5876 & 0.5870 & 0.5870 & $-3884.368$ & 0.999 \\
+$[-0.25,0)$       & 104 & $-0.0625$ & 0.1816 & 0.2798 & 0.2441 & 0.2441 & $-25.084$ & $-0.055$ \\
+$[0,0.25)$        & 652 & 0.1413 & 0.2249 & 0.1534 & 0.1174 & 0.0836 & $-4.232$ & 0.274 \\
+$[0.25,0.50)$     & 827 & 0.3707 & 0.3617 & 0.1104 & 0.0893 & $-0.0091$ & $-1.375$ & 0.307 \\
+$[0.50,0.75)$     & 350 & 0.5942 & 0.4319 & 0.1864 & 0.1634 & $-0.1623$ & $-6.672$ & 0.184 \\
+$[0.75,1.00)$     & 59  & 0.8195 & 0.4491 & 0.3832 & 0.3704 & $-0.3704$ & $-44.830$ & $-0.141$ \\
+$[1.00,1.25)$     & 4   & 1.1151 & 0.3941 & 0.7233 & 0.7210 & $-0.7210$ & $-213.446$ & 0.324 \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\footnotesize
+\textit{Note:} Predicted values and performance statistics refer to the calibrated predictions. Test-set intervals containing no observations were omitted. Pearson's correlation was only available for the external evaluation.
+}
+\end{table}

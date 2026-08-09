@@ -239,3 +239,129 @@ Terminology summary:
     Polygon means:
         one tabular row per footprint with raster predictors summarized over
         the footprint
+
+
+11. RQ5 winter-wheat yield prediction pipeline
+------------------------------------------------
+
+Pipeline:
+
+    export_nuts3_regions_for_wheat_inference.R
+        -> predict_monthly_winter_wheat_sif_nuts3.py
+        -> extract_nuts3_winter_wheat_nirv_composition.py
+        -> prepare_nuts3_raw_mixed_sif_yield_data.R
+        -> attach_bayern_winter_wheat_yield.R
+        -> winter-wheat-yield-crop-pure-vs-raw-sif.ipynb
+
+The export script selects Bavaria NUTS3 regions with at least 50% of their area
+inside the study MGRS tiles. The monthly inference script applies the trained
+Sentinel-2 CNN to strict winter-wheat pixels and summarizes crop-pure enhanced
+SIF by NUTS3 region, year and month. The companion extraction script adds
+winter-wheat coverage and monthly NIRv.
+
+The raw-baseline script summarizes accepted OCO-2 footprints by NUTS3 and month
+for all footprints and for footprints with at least 5%, 10% or 30%
+winter-wheat coverage. The yield-attachment script joins the official Bavaria
+winter-wheat yield data, converts dt/ha to metric tonnes/ha and writes:
+
+    data/winter_wheat_yield_model/ww_model_data.csv
+
+The final notebook trains fixed-configuration Random Forest models on
+2019-2022 and evaluates them on held-out 2024 data. The primary comparison is
+crop-pure monthly enhanced SIF versus raw all-footprint and raw >=5% wheat
+monthly SIF.
+
+The complete RQ5 pipeline explanation is in:
+
+    RQ/rq5_pipeline.txt
+
+
+12. Data acquisition and download scripts
+-----------------------------------------
+
+12.1 Sentinel-2 monthly WASP composites
+
+    sen2_processing/geodes_download_32unc_zip_curl.py
+
+        Production downloader for THEIA Sentinel-2 L3A WASP monthly
+        composites. It downloads a configured MGRS tile for March-July in
+        2019, 2020, 2021, 2022 and 2024, supports curl resume/retries, and
+        records each requested product in a checklist CSV under
+        data/geodes_wasp_zips/<tile>.
+
+    sen2_processing/geodes_unzip_delete_32uqc.py
+
+        Unpacks the downloaded GEODES ZIP archives into their yearly tile
+        folders and deletes each archive after successful extraction. The
+        configured tile path is changed when processing another tile.
+
+The older geodes_download_32unc_zip.py and the STAC query/download scripts in
+sen2_processing were development or direct-STAC alternatives. The curl-based
+GEODES downloader is the final acquisition route used for the monthly
+Sentinel-2 data.
+
+
+12.2 GLASS MODIS products
+
+    glass_scripts/download_glass_fapar.py
+
+        Downloads 8-day 250 m GLASS FAPAR for Germany tiles h18v03 and
+        h18v04, organized by tile and year.
+
+    glass_scripts/download_glass_evi.py
+
+        Downloads 8-day 250 m GLASS EVI for the same Germany tiles and study
+        years.
+
+    glass_scripts/download_glass_ndvi.py
+
+        Downloads 8-day 250 m GLASS NDVI for the same Germany tiles and study
+        years.
+
+    glass_scripts/download_glass_par.py
+
+        Downloads the global 0.05-degree GLASS PAR files at 8-day increments.
+
+    glass_scripts/convert_glass_hdf_to_tif.R
+
+        Converts the downloaded GLASS HDF products to GeoTIFF, mirrors the
+        source directory structure, and masks invalid product values. This is
+        a post-download staging step required by the Python raster pipelines.
+
+
+12.3 NASA MODIS and VIIRS PAR
+
+    download_viirs_vnp18a2_daily_mean_par_sif_dates.R (this is the one used by the spatial aggregate 4km model)
+
+        Production downloader for VNP18A2 Version 2 daily-mean PAR and its
+        PAR_Quality layer for every unique OCO-2 SIF date. It downloads the
+        VIIRS tiles intersecting Germany, mosaics and crops them while keeping
+        the native sinusoidal grid, and writes a resumable checklist.
+
+    download_modis_par_sif_dates.R
+
+        Downloads MCD18A2 Version 6.2 PAR at 12:00 UTC and PAR_Quality for the
+        unique SIF dates. It creates Germany subsets on a fixed 1 km
+        EPSG:3035 grid and also provides reusable Earthdata helper functions
+        used by the VIIRS downloader.
+
+    nasa_par_download/download_modis_par_sif_dates.py (data not used)
+
+        Python/earthaccess alternative for downloading and preparing the
+        MCD18A2 12:00 UTC PAR data. It was an alternative implementation, not
+        the primary VIIRS daily-mean PAR route used by the final Sentinel-2
+        CNN pipeline.
+
+The native MODIS smoke test and granule-diagnostic scripts under
+nasa_par_download verify a small number of downloads or investigate missing
+granules; they are validation utilities rather than full production
+downloaders.
+
+
+12.4 Data acquired outside these download scripts
+
+The scanned acquisition scripts do not provide the original OCO-2 NC4
+soundings, annual crop-type rasters, Bavaria yield CSV files, administrative
+boundaries or hardiness-zone geometries. Those source datasets enter the
+project as separately obtained local inputs and are processed by the model
+data-preparation pipelines documented above.

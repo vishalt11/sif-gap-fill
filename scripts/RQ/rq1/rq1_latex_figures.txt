@@ -1,0 +1,76 @@
+% Figure rq1.1
+
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/1_obv_vs_pred_4km-spatial_9tiles.pdf}}
+        \caption{Nine-tile evaluation}
+        \label{fig:rq1_obv_pred_9tiles}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/1_obv_vs_pred_4km-spatial_external_native_2tiles.pdf}}
+        \caption{External two-tile evaluation}
+        \label{fig:rq1_obv_pred_external_2tiles}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/1_obv_vs_pred_4km-spatial_external_native_2tiles_sif0_075.pdf}}
+        \caption{External two-tile evaluation, SIF $\leq 0.75$}
+        \label{fig:rq1_obv_pred_external_2tiles_sif075}
+    \end{subfigure}
+
+    \caption{to be filled}
+    \label{fig:rq1_observed_predicted_comparison}
+\end{figure}
+
+
+-----------------------------------------
+
+% Figure rq1.2
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{%
+        \detokenize{img/Validation_channel_permutation_importance.pdf}}
+
+    \caption[Validation permutation importance of predictor channels]{%
+        Validation-set permutation importance of the predictor channels.
+        Importance is measured as the increase in validation RMSE after
+        independently permuting each predictor. The markers indicate the mean
+        increase in RMSE, while the horizontal error bars represent variability
+        across three permutation repeats. Larger positive values indicate
+        greater predictive importance, whereas values close to or below zero
+        indicate little contribution to validation performance. FAPAR, the
+        seasonal cosine term, and NIRv show the greatest importance.}
+    \label{fig:validation_channel_permutation_importance}
+\end{figure}
+
+-----------------------------------------
+
+% Figure rq1.3
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        height=0.5\textheight,
+        keepaspectratio
+    ]{\detokenize{img/test_spatial_residual_map_germany.pdf}}
+
+    \caption[Spatial distribution of test residuals across Germany]{%
+        Spatial distribution of the calibrated 4~km test residuals across
+        Germany ($N=931$). Each grid cell is coloured according to the
+        difference between predicted and observed SIF. Red cells indicate
+        positive residuals and therefore model overestimation, whereas blue
+        cells indicate negative residuals and model underestimation. Values
+        close to white represent predictions close to the observations. The
+        diverging colour scale is symmetrically clipped at the 98th percentile
+        ($\pm 0.180$) to limit the visual influence of extreme residuals.}
+    \label{fig:test_spatial_residual_map_germany}
+\end{figure}
+

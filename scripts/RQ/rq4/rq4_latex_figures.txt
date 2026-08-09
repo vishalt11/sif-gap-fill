@@ -1,0 +1,44 @@
+--------------------------------------------
+% Figure rq4.1
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/hzs_month_rmse_heatmap.pdf}}
+
+    \caption{to be filled}
+    \label{fig:hzs_month_rmse_heatmap}
+\end{figure}
+
+--------------------------------------------
+% Figure rq4.2
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/hzs_performance_choropleth_rmse_r2.pdf}}
+
+    \caption{to be filled}
+    \label{fig:hzs_performance_choropleth}
+\end{figure}
+
+--------------------------------------------
+% Figure rq4.3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/residual_distribution_by_individual_hzs.pdf}}
+
+    \caption{to be filled}
+    \label{fig:residual_distribution_individual_hzs}
+\end{figure}

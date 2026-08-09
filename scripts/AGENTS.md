@@ -28,6 +28,7 @@ Assume that I have all packages for python and R installed.
 
 Don't mess around with git for this project. I am doing git on my end.
 
+
 # Base Data forms
 
 Bavaria only SIF data at data/ba_sif_mgrs_crop_composition.csv (there are other files for niedersachsen, sachsen-anhalt), but you get the general structure from here.

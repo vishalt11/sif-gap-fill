@@ -1,0 +1,227 @@
+MODEL AND DATA-PREPARATION STRUCTURE
+====================================
+
+
+11. RQ5 winter-wheat yield prediction pipeline
+------------------------------------------------
+
+Research question:
+
+    To what extent does high-resolution, crop-pure enhanced SIF improve
+    winter-wheat yield prediction RMSE compared with mixed-pixel SIF derived
+    from raw satellite observations?
+
+The current end-to-end order is:
+
+    export_nuts3_regions_for_wheat_inference.R
+        -> predict_monthly_winter_wheat_sif_nuts3.py
+        -> extract_nuts3_winter_wheat_nirv_composition.py
+        -> prepare_nuts3_raw_mixed_sif_yield_data.R
+        -> attach_bayern_winter_wheat_yield.R
+        -> winter-wheat-yield-crop-pure-vs-raw-sif.ipynb
+
+The filenames in the requested list need two small corrections: monthly SIF
+inference is implemented in a Python file, not an R file, and the final yield
+model is currently an IPython notebook, not a plain Python script.
+
+
+11.1 export_nuts3_regions_for_wheat_inference.R
+
+Purpose:
+
+    Defines the Bavaria NUTS3 regions used for crop-pure SIF inference and
+    yield modelling.
+
+Method:
+
+    - Reads the Sentinel-2 raster extents for tiles 32UNA, 32UPU, 32UQV,
+      32UPA and 32UPV.
+    - Intersects Bavaria NUTS3 geometries with those tile extents.
+    - Keeps a NUTS3 region when at least 50% of its area lies in a selected
+      tile.
+    - Gives the original tiles 32UNA, 32UPU and 32UQV priority when a region
+      matches both an original and a newly added tile.
+    - Otherwise assigns a duplicated region to the tile containing the
+      largest percentage of its area.
+    - Verifies that each NUTS3 region has only one assigned tile.
+
+Principal outputs:
+
+    data/nuts3_regions_50pct_in_mgrs.rds
+    data/nuts3_regions_50pct_in_mgrs.gpkg
+
+The GPKG is the direct spatial input to the monthly CNN inference script.
+
+
+11.2 predict_monthly_winter_wheat_sif_nuts3.py
+
+Purpose:
+
+    Applies the trained Sentinel-2 spatial-aggregate CNN to strict
+    winter-wheat pixels and summarizes the resulting enhanced SIF by NUTS3,
+    year and month.
+
+Coverage:
+
+    Tiles:  32UNA, 32UPU, 32UQV, 32UPA and 32UPV
+    Years:  2019, 2020, 2021, 2022 and 2024
+    Months: March through July
+
+Method:
+
+    - Builds the same 20 m predictor channels and normalization used during
+      CNN training.
+    - Uses the annual crop-type raster to retain strict winter-wheat pixels.
+    - Runs the saved spatial-aggregate CNN checkpoint in blocks rather than
+      constructing a complete in-memory prediction stack.
+    - Calculates the mean raw and calibrated predicted SIF over the strict
+      winter-wheat pixels inside each assigned NUTS3 region.
+    - Supports incremental resume at the region/scene level, so newly added
+      NUTS3 regions can be processed without recomputing completed regions.
+
+Principal outputs:
+
+    data/winter_wheat_yield_model/monthly_crop_pure_sif/
+        nuts3_monthly_strict_wheat_sif_long.csv
+        nuts3_monthly_strict_wheat_sif_wide.csv
+        scene_processing_log.csv
+
+The wide table contains one row per NUTS3 region and year, with calibrated
+crop-pure SIF columns for March through July.
+
+
+11.3 extract_nuts3_winter_wheat_nirv_composition.py
+
+Purpose:
+
+    Adds regional winter-wheat composition and monthly NIRv without rerunning
+    CNN inference.
+
+Method:
+
+    - Calculates ww_pct from the annual crop raster for each NUTS3/year.
+    - Extracts monthly mean NIRv over the same strict winter-wheat support.
+    - Joins these values to the completed crop-pure SIF wide table.
+
+Principal merged output:
+
+    data/winter_wheat_yield_model/monthly_crop_pure_sif/
+        nuts3_monthly_strict_wheat_sif_nirv_wide.csv
+
+NIRv is retained in the prepared table for diagnostics and possible future
+models, although it is not used by the current final RQ5 Random Forest models.
+
+
+11.4 prepare_nuts3_raw_mixed_sif_yield_data.R
+
+Purpose:
+
+    Builds the raw OCO-2 mixed-pixel comparison baselines and joins them to
+    the crop-pure regional predictors.
+
+Raw SIF input:
+
+    data/extracted_modis_data/
+        modis_1_12_bin_uncertainity_corrected_raw.rds
+
+Method:
+
+    - Keeps accepted target_modis_sif observations for the analysis years
+      and March-July period.
+    - Drops any existing geometry and rebuilds each OCO-2 footprint polygon
+      from its four latitude/longitude corners.
+    - Uses the rebuilt footprint centroid to assign each sounding to one of
+      the selected NUTS3 regions.
+    - Produces four raw-SIF baselines:
+
+          raw_all:  all accepted footprints
+          raw_ww05: footprints with ww_pct >= 0.05
+          raw_ww10: footprints with ww_pct >= 0.10
+          raw_ww30: footprints with ww_pct >= 0.30
+
+    - Within each NUTS3/month, first averages SIF by acquisition date and
+      then averages the date means. This prevents a date with many adjacent
+      OCO-2 soundings from dominating a monthly value.
+    - Joins the raw monthly baselines to the crop-pure SIF, NIRv and ww_pct
+      table.
+
+Principal comparison output:
+
+    data/winter_wheat_yield_model/raw_mixed_sif/
+        nuts3_crop_pure_and_raw_mixed_sif_predictors.csv
+
+This table has one row per NUTS3 region and year and contains the crop-pure
+monthly SIF predictors plus the four raw mixed-pixel SIF representations.
+
+
+11.5 attach_bayern_winter_wheat_yield.R
+
+Purpose:
+
+    Attaches the official Bavaria winter-wheat yield target and creates the
+    final RQ5 model table.
+
+Method:
+
+    - Combines the yearly CSV files under data/bayern_yield.
+    - Reads the column "Winterweizen (einschl. Dinkel und Einkorn)".
+    - Handles German text encoding and European decimal commas.
+    - Converts yield from dt/ha to metric tonnes/ha by dividing by 10.
+    - Joins yield to the predictor table by NUTS3 name and year.
+    - Removes rows without a usable yield target.
+    - Calculates one observed-month seasonal mean for each raw SIF baseline
+      before imputation.
+    - Estimates missing-predictor means from the training years 2019-2022
+      only, then applies those fixed means to both training data and 2024.
+      Thus, 2024 values do not influence imputation estimates.
+
+Principal output:
+
+    data/winter_wheat_yield_model/ww_model_data.csv
+
+
+11.6 winter-wheat-yield-crop-pure-vs-raw-sif.ipynb
+
+Purpose:
+
+    Trains and evaluates the winter-wheat yield models used to answer RQ5.
+
+Evaluation design:
+
+    Training years: 2019-2022
+    Held-out test year: 2024
+    Target: ww_yield in metric tonnes/ha
+    Model: RandomForestRegressor
+    Fixed settings: 500 trees, max_depth = 5, min_samples_leaf = 3
+
+The notebook fits nine candidate representations using the same Random
+Forest configuration:
+
+    - Crop-pure calibrated monthly SIF: five March-July predictors
+    - Raw-all monthly SIF: five March-July predictors
+    - Raw >=5% wheat monthly SIF: five March-July predictors
+    - Raw >=10% wheat monthly SIF: five March-July predictors
+    - Raw >=30% wheat monthly SIF: five March-July predictors
+    - Four corresponding single-column raw seasonal-mean models
+
+The current primary RQ5 comparison retains three monthly models:
+
+    crop_pure_monthly
+    raw_ww05_monthly
+    raw_all_monthly
+
+The final model predictors are the relevant SIF columns only. NIRv and ww_pct
+are not included in the current final Random Forest feature sets, which keeps
+the comparison focused on the SIF representation.
+
+Principal result outputs:
+
+    data/winter_wheat_yield_model/rq5_results/
+        yield_model_performance_comparison.csv
+        observed_vs_predicted_yield_models.pdf
+        paired_regional_absolute_error_improvement.pdf
+        bootstrap_rmse_improvement_distribution.pdf
+
+These four outputs provide the main RQ5 evidence: overall predictive
+performance, observed-versus-predicted behavior, paired regional error
+changes, and uncertainty in RMSE improvement from 10,000 bootstrap draws.
