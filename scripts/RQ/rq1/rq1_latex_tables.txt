@@ -52,3 +52,65 @@ $[1.00,1.25)$     & 4   & 1.1151 & 0.3941 & 0.7233 & 0.7210 & $-0.7210$ & $-213.
 \textit{Note:} Predicted values and performance statistics refer to the calibrated predictions. Test-set intervals containing no observations were omitted. Pearson's correlation was only available for the external evaluation.
 }
 \end{table}
+
+------------------------------------------
+
+% table for subgroup analysis
+
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.06}
+
+\caption{Calibrated fitted performance across measurement mode, temporal alignment, month, and observation-year subgroups.}
+\label{tab:rq1_subgroup_performance}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\hline
+\multicolumn{9}{l}{\textbf{A. Measurement mode}} \\
+\hline
+\textbf{Mode} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+Mode 0 & 0.0306 & 0.7200 & 0.3105 & 0.3030 & 0.0659 & 0.0492 & $-0.0075$ & 0.8090 \\
+Mode 1 & 0.0131 & 0.6790 & 0.3412 & 0.3181 & 0.0746 & 0.0566 & $-0.0231$ & 0.6885 \\
+\hline
+
+\multicolumn{9}{l}{\textbf{B. Date alignment}} \\
+\hline
+\textbf{Alignment} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+Within range & 0.0131 & 0.7200 & 0.3379 & 0.3219 & 0.0712 & 0.0539 & $-0.0160$ & 0.7421 \\
+Outside range & 0.0570 & 0.4855 & 0.1820 & 0.1794 & 0.0569 & 0.0393 & $-0.0026$ & 0.6428 \\
+\hline
+
+\multicolumn{9}{l}{\textbf{C. Observation month}} \\
+\hline
+\textbf{Month} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+February (2) & 0.0285 & 0.1449 & 0.0869 & 0.0861 & 0.0302 & 0.0236 & $-0.0008$ & $-0.2443$ \\
+March (3)    & 0.0452 & 0.3008 & 0.1267 & 0.1172 & 0.0343 & 0.0263 & $-0.0095$ & 0.4035 \\
+April (4)    & 0.0131 & 0.5578 & 0.2999 & 0.2890 & 0.0582 & 0.0453 & $-0.0109$ & 0.5123 \\
+May (5)      & 0.0828 & 0.7200 & 0.4493 & 0.4193 & 0.0876 & 0.0712 & $-0.0301$ & 0.4355 \\
+June (6)     & 0.2119 & 0.6527 & 0.4200 & 0.4035 & 0.1025 & 0.0753 & $-0.0165$ & $-0.2676$ \\
+July (7)     & 0.0441 & 0.5177 & 0.3447 & 0.3463 & 0.0816 & 0.0609 & 0.0016 & 0.2947 \\
+\hline
+
+\multicolumn{9}{l}{\textbf{D. SIF observation year}} \\
+\hline
+\textbf{Year} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+2019 & 0.0131 & 0.6527 & 0.3117 & 0.3021 & 0.0654 & 0.0493 & $-0.0095$ & 0.4809 \\
+2020 & 0.0452 & 0.3008 & 0.1267 & 0.1172 & 0.0343 & 0.0263 & $-0.0095$ & 0.4035 \\
+2022 & 0.0828 & 0.7200 & 0.4482 & 0.4190 & 0.0890 & 0.0721 & $-0.0293$ & 0.4202 \\
+2023 & 0.2315 & 0.5481 & 0.4099 & 0.4069 & 0.0729 & 0.0579 & $-0.0030$ & 0.0938 \\
+2024 & 0.0285 & 0.1449 & 0.0869 & 0.0861 & 0.0302 & 0.0236 & $-0.0008$ & $-0.2443$ \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+\parbox{\textwidth}{\footnotesize
+\textit{Note:} Predicted means and performance statistics refer to calibrated predictions. Measurement-mode labels follow the numerical encoding in the source data. Values are rounded to four decimal places.
+}
+\end{table}

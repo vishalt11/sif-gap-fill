@@ -281,11 +281,11 @@ The complete RQ5 pipeline explanation is in:
 
 12.1 Sentinel-2 monthly WASP composites
 
-    sen2_processing/geodes_download_32unc_zip_curl.py
+    sen2_processing/geodes_download_32unc_zip_curl.py (note I edited this file to download march to july, 2019-2022/2024 for the yield model. Previously it was all available Feb to July, 2019-2024)
 
         Production downloader for THEIA Sentinel-2 L3A WASP monthly
-        composites. It downloads a configured MGRS tile for March-July in
-        2019, 2020, 2021, 2022 and 2024, supports curl resume/retries, and
+        composites. It downloads a configured MGRS tile for Feb-July in
+        2019, 2020, 2021, 2022, 2023 and 2024, supports curl resume/retries, and
         records each requested product in a checklist CSV under
         data/geodes_wasp_zips/<tile>.
 
