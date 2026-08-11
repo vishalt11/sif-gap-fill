@@ -1,0 +1,1764 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="420mm"
+   height="297mm"
+   viewBox="0 0 1190.55 841.89"
+   role="img"
+   version="1.1"
+   id="svg99"
+   sodipodi:docname="spatial_aggregate_4km_three_level_unet_architecture.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   inkscape:export-filename="spatial_aggregate_4km_three_level_unet_architecture.pdf"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview99"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.68239338"
+     inkscape:cx="761.29109"
+     inkscape:cy="697.54487"
+     inkscape:window-width="1920"
+     inkscape:window-height="1010"
+     inkscape:window-x="2553"
+     inkscape:window-y="-6"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg99" />
+  <title
+     id="title1">Spatial-Aggregate (4 km) Three-Level U-Net</title>
+  <desc
+     id="desc1">Editable vector architecture diagram of the three-level U-Net and weighted aggregate supervision.</desc>
+  <defs
+     id="defs3">
+    <marker
+       id="arrow-dark"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0 0 L 10 5 L 0 10 z"
+         fill="#26394C"
+         id="path1" />
+    </marker>
+    <marker
+       id="arrow-blue"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0 0 L 10 5 L 0 10 z"
+         fill="#6D9FD0"
+         id="path2" />
+    </marker>
+    <marker
+       id="arrow-green"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0 0 L 10 5 L 0 10 z"
+         fill="#5F8E43"
+         id="path3" />
+    </marker>
+    <style
+       id="style3"><![CDATA[
+    text { font-family: Arial, Helvetica, sans-serif; fill: #172436; }
+    .title { font-size: 25px; font-weight: 700; fill: #0B2B4C; }
+    .subtitle { font-size: 11.5px; fill: #536273; }
+    .section { font-size: 11px; font-weight: 700; fill: #123A63; }
+    .label { font-size: 11px; font-weight: 700; }
+    .body { font-size: 10px; }
+    .small { font-size: 9.3px; fill: #536273; }
+    .white { fill: #FFFFFF; }
+    .blue-text { fill: #6D9FD0; }
+    .green-text { fill: #5F8E43; }
+    .flow { fill: none; stroke: #26394C; stroke-width: 1.8; marker-end: url(#arrow-dark); }
+    .skip { fill: none; stroke: #6D9FD0; stroke-width: 1.7; stroke-dasharray: 6 4; marker-end: url(#arrow-blue); }
+    .blue-flow { fill: none; stroke: #6D9FD0; stroke-width: 1.6; marker-end: url(#arrow-blue); }
+    .green-flow { fill: none; stroke: #5F8E43; stroke-width: 1.6; marker-end: url(#arrow-green); }
+  ]]></style>
+    <marker
+       id="arrow-dark-6"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0,0 10,5 0,10 Z"
+         fill="#26394c"
+         id="path1-5" />
+    </marker>
+    <marker
+       id="marker2"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0,0 10,5 0,10 Z"
+         fill="#26394c"
+         id="path2-1" />
+    </marker>
+    <marker
+       id="marker3"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0,0 10,5 0,10 Z"
+         fill="#26394c"
+         id="path3-0" />
+    </marker>
+  </defs>
+  <rect
+     width="1190.55"
+     height="841.89"
+     fill="#FFFFFF"
+     id="rect3" />
+  <g
+     id="title"
+     inkscape:groupmode="layer"
+     inkscape:label="Title">
+    <text
+       x="42"
+       y="48"
+       text-anchor="start"
+       class="title"
+       id="text3">Spatial-Aggregate (4 km) Three-Level U-Net</text>
+    <text
+       x="43"
+       y="71"
+       text-anchor="start"
+       class="subtitle"
+       id="text4">Three downsamplings | 20 m dense SIF prediction | 485,041 trainable parameters</text>
+    <line
+       x1="42"
+       y1="82"
+       x2="1148.55"
+       y2="82"
+       stroke="#123A63"
+       stroke-width="2"
+       id="line4" />
+  </g>
+  <g
+     id="model-panel"
+     inkscape:groupmode="layer"
+     inkscape:label="Model panel">
+    <rect
+       x="8.5728111"
+       y="179.26015"
+       width="1046.4271"
+       height="468.17325"
+       rx="12.250854"
+       fill="#fbfcfe"
+       stroke="#d8e0e8"
+       stroke-width="1.00774"
+       id="rect4" />
+    <g
+       id="g104-8"
+       transform="matrix(1.5997525,0,0,1.1858012,63.170617,-192.7914)"
+       style="stroke-width:0.726053">
+      <g
+         id="g103-08"
+         transform="translate(-1.9920701,2.4729146)"
+         style="stroke-width:0.726053">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-7"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.09956;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-7"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.09956;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-8"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:0.726513;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-0-3"
+         transform="translate(-8.4277431,7.9096711)"
+         style="stroke-width:0.726053">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-9-8"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.09956;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-0-3"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.09956;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-0-7"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:0.726513;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-1-1"
+         transform="translate(-14.827747,13.129601)"
+         style="stroke-width:0.726053">
+        <polygon
+           points="235,201 226,210 160,210 169,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3-07"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.09956;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="235,327 226,336 226,210 235,201 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8-3"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.09956;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9-49"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:0.726513;stroke-dasharray:none" />
+      </g>
+    </g>
+    <g
+       id="g111"
+       transform="translate(9.1316543,-9.1316543)">
+      <g
+         id="g103-1-5"
+         transform="matrix(0.98141969,0,0,0.74365559,153.27857,174.15754)"
+         style="stroke-width:1.17054">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3-0"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8-9"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9-4"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.17128;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-1-5-8"
+         transform="matrix(0.98141969,0,0,0.74365559,148.9113,176.92929)"
+         style="stroke-width:1.17054">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3-0-3"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8-9-5"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9-4-1"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.17128;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-1-5-0"
+         transform="matrix(0.98141969,0,0,0.74365559,144.41636,179.79933)"
+         style="stroke-width:1.17054">
+        <polygon
+           points="226,210 160,210 169,201 235,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3-0-1"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,336 226,210 235,201 235,327 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8-9-6"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9-4-4"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.17128;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-1-5-6"
+         transform="matrix(0.98141969,0,0,0.74365559,140.08986,182.44208)"
+         style="stroke-width:1.17054">
+        <polygon
+           points="226,210 160,210 169,201 235,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3-0-18"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,336 226,210 235,201 235,327 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8-9-9"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9-4-8"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.17128;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-1-5-1"
+         transform="matrix(0.98141969,0,0,0.74365559,135.41219,185.37944)"
+         style="stroke-width:1.17054">
+        <polygon
+           points="235,201 226,210 160,210 169,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3-0-4"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="235,327 226,336 226,210 235,201 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8-9-3"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.77272;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9-4-9"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.17128;stroke-dasharray:none" />
+      </g>
+    </g>
+    <g
+       id="g104"
+       transform="matrix(1.1497976,0,0,0.85036012,193.68463,31.647985)"
+       style="stroke-width:1.01132">
+      <g
+         id="g103"
+         transform="translate(-1.9920701,2.4729146)"
+         style="stroke-width:1.01132">
+        <polygon
+           points="169,201 235,201 226,210 160,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.53158;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="235,201 235,327 226,336 226,210 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.53158;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.01196;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-0"
+         transform="translate(-8.4277431,7.9096711)"
+         style="stroke-width:1.01132">
+        <polygon
+           points="169,201 235,201 226,210 160,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-9"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.53158;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="235,201 235,327 226,336 226,210 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-0"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.53158;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-0"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.01196;stroke-dasharray:none" />
+      </g>
+      <g
+         id="g103-1"
+         transform="translate(-14.827747,13.129601)"
+         style="stroke-width:1.01132">
+        <polygon
+           points="226,210 160,210 169,201 235,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon18-2-3-4-3"
+           style="fill:#e4daf6;fill-opacity:1;stroke-width:1.53158;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <polygon
+           points="226,336 226,210 235,201 235,327 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="polygon19-1-1-8-8"
+           style="fill:#977ad7;fill-opacity:1;stroke-width:1.53158;stroke-dasharray:none"
+           transform="matrix(0.72666156,0,0,0.60077613,447.35518,218.10414)" />
+        <rect
+           x="563.62103"
+           y="344.26712"
+           width="47.959663"
+           height="75.697792"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.36213"
+           id="rect19-6-2-6-9"
+           style="fill:#c7b5e8;fill-opacity:1;stroke-width:1.01196;stroke-dasharray:none" />
+      </g>
+    </g>
+    <g
+       id="g110">
+      <g
+         id="g101-7-4"
+         transform="matrix(0.74335714,0,0,0.463925,313.64697,327.80826)"
+         style="stroke-width:1.70285">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon18-6-1" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon19-18-1" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="rect19-9-3" />
+      </g>
+      <g
+         id="g101-6-2-8"
+         transform="matrix(0.74335714,0,0,0.463925,310.18793,329.90523)"
+         style="stroke-width:1.70285">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon18-1-7-7" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon19-4-9-4" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="rect19-2-5-2" />
+      </g>
+      <g
+         id="g101-2-4-7"
+         transform="matrix(0.74335714,0,0,0.463925,306.86261,331.82843)"
+         style="stroke-width:1.70285">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon18-2-3-7" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon19-1-1-9" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="rect19-6-2-3" />
+      </g>
+      <g
+         id="g101-2-4-7-6"
+         transform="matrix(0.74335714,0,0,0.463925,303.27303,334.11916)"
+         style="stroke-width:1.70285">
+        <polygon
+           points="226,210 160,210 169,201 235,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon18-2-3-7-3" />
+        <polygon
+           points="226,336 226,210 235,201 235,327 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon19-1-1-9-7" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="rect19-6-2-3-8" />
+      </g>
+      <g
+         id="g101-2-4-7-2"
+         transform="matrix(0.74335714,0,0,0.463925,299.38722,336.25635)"
+         style="stroke-width:1.70285">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon18-2-3-7-9" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="polygon19-1-1-9-1" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.53256"
+           id="rect19-6-2-3-3" />
+      </g>
+    </g>
+    <g
+       id="g102-5"
+       transform="matrix(0.83389755,0,0,0.52701039,166.21433,217.21361)"
+       style="stroke-width:1.50846">
+      <g
+         id="g101-7"
+         transform="translate(-4.3962954,5.2205978)"
+         style="stroke-width:1.50846">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="polygon18-6" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="polygon19-18" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="rect19-9" />
+      </g>
+      <g
+         id="g101-6-2"
+         transform="translate(-12.970101,13.509841)"
+         style="stroke-width:1.50846">
+        <polygon
+           points="226,210 160,210 169,201 235,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="polygon18-1-7" />
+        <polygon
+           points="226,336 226,210 235,201 235,327 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="polygon19-4-9" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="rect19-2-5" />
+      </g>
+      <g
+         id="g101-2-4"
+         transform="translate(-22.148117,22.680904)"
+         style="stroke-width:1.50846">
+        <polygon
+           points="226,210 160,210 169,201 235,201 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="polygon18-2-3" />
+        <polygon
+           points="226,336 226,210 235,201 235,327 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="polygon19-1-1" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.35761"
+           id="rect19-6-2" />
+      </g>
+    </g>
+    <text
+       x="1034.4583"
+       y="196.66571"
+       text-anchor="end"
+       class="small"
+       id="text6">C x H x W</text>
+  </g>
+  <g
+     id="feature-maps"
+     inkscape:groupmode="layer"
+     inkscape:label="Feature maps">
+    <g
+       id="g100"
+       transform="matrix(1.1350606,0,0,0.71043768,-21.176491,64.517237)"
+       style="stroke-width:1.11359">
+      <g
+         id="g99-4"
+         transform="translate(16.896758,48.323022)"
+         style="stroke-width:1.11359">
+        <polygon
+           points="59,201 127,201 118,210 50,210 "
+           fill="#d0e5f7"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="polygon12-5"
+           transform="translate(-14.013183,-19.23378)" />
+        <polygon
+           points="127,201 127,327 118,336 118,210 "
+           fill="#6d9fd0"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="polygon13-5"
+           transform="translate(-14.013183,-19.23378)" />
+        <rect
+           x="35.986816"
+           y="190.76622"
+           width="68"
+           height="126"
+           fill="#9fc5ea"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="rect13-1" />
+      </g>
+      <g
+         id="g99-4-1"
+         transform="translate(7.9865569,57.381777)"
+         style="stroke-width:1.11359">
+        <polygon
+           points="118,210 50,210 59,201 127,201 "
+           fill="#d0e5f7"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="polygon12-5-1"
+           transform="translate(-14.013183,-19.23378)" />
+        <polygon
+           points="118,336 118,210 127,201 127,327 "
+           fill="#6d9fd0"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="polygon13-5-5"
+           transform="translate(-14.013183,-19.23378)" />
+        <rect
+           x="35.986816"
+           y="190.76622"
+           width="68"
+           height="126"
+           fill="#9fc5ea"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="rect13-1-2" />
+      </g>
+      <g
+         id="g99"
+         transform="translate(-1.1657431,66.447357)"
+         style="stroke-width:1.11359">
+        <polygon
+           points="59,201 127,201 118,210 50,210 "
+           fill="#d0e5f7"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="polygon12"
+           transform="translate(-14.013183,-19.23378)" />
+        <polygon
+           points="127,201 127,327 118,336 118,210 "
+           fill="#6d9fd0"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="polygon13"
+           transform="translate(-14.013183,-19.23378)" />
+        <rect
+           x="35.986816"
+           y="190.76622"
+           width="68"
+           height="126"
+           fill="#9fc5ea"
+           stroke="#26394c"
+           stroke-width="1.00223"
+           id="rect13" />
+      </g>
+    </g>
+    <text
+       x="65.372948"
+       y="354.45139"
+       text-anchor="middle"
+       class="label"
+       id="text13">Input chip</text>
+    <text
+       x="66.538689"
+       y="368.37512"
+       text-anchor="middle"
+       class="small"
+       id="text14">19 x 200 x 200</text>
+    <g
+       id="g102"
+       transform="matrix(1.164747,0,0,0.71304735,-22.361151,79.055449)"
+       style="stroke-width:1.09729">
+      <g
+         id="g101"
+         transform="translate(-4.3962954,5.2205978)"
+         style="stroke-width:1.09729">
+        <polygon
+           points="169,201 235,201 226,210 160,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="polygon18" />
+        <polygon
+           points="235,201 235,327 226,336 226,210 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="polygon19" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="rect19" />
+      </g>
+      <g
+         id="g101-6"
+         transform="translate(-12.970101,13.509841)"
+         style="stroke-width:1.09729">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="polygon18-1" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="polygon19-4" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="rect19-2" />
+      </g>
+      <g
+         id="g101-2"
+         transform="translate(-22.148117,22.680904)"
+         style="stroke-width:1.09729">
+        <polygon
+           points="160,210 169,201 235,201 226,210 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="polygon18-2" />
+        <polygon
+           points="226,210 235,201 235,327 226,336 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="polygon19-1" />
+        <rect
+           x="160"
+           y="210"
+           width="66"
+           height="126"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="0.987564"
+           id="rect19-6" />
+      </g>
+    </g>
+    <text
+       x="185.30649"
+       y="353.40555"
+       text-anchor="middle"
+       class="label"
+       id="text19">Encoder 1</text>
+    <text
+       x="186.40556"
+       y="365.00928"
+       text-anchor="middle"
+       class="small"
+       id="text20">16 x 200 x 200</text>
+    <text
+       x="315.6037"
+       y="423.41483"
+       text-anchor="middle"
+       class="label"
+       id="text25">Encoder 2</text>
+    <text
+       x="315.6037"
+       y="438.31577"
+       text-anchor="middle"
+       class="small"
+       id="text26">32 x 100 x 100</text>
+    <text
+       x="453.09906"
+       y="509.81113"
+       text-anchor="middle"
+       class="label"
+       id="text31">Encoder 3</text>
+    <text
+       x="455.29721"
+       y="522.51392"
+       text-anchor="middle"
+       class="small"
+       id="text32">64 x 50 x 50</text>
+    <g
+       id="g108"
+       transform="matrix(0.60391335,0,0,0.73664575,241.33972,133.39547)"
+       style="stroke-width:1.49928">
+      <g
+         id="g105-6-6"
+         transform="matrix(0.77554419,0,0,0.66443315,134.50641,202.43822)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="550,539 560,529 648,529 638,539 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="638,539 648,529 648,599 638,609 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1" />
+      </g>
+      <g
+         id="g105-6-6-4"
+         transform="matrix(0.77554419,0,0,0.66443315,131.46848,204.843)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="550,539 560,529 648,529 638,539 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3-2"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="638,539 648,529 648,599 638,609 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6-0"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1-9" />
+      </g>
+      <g
+         id="g105-6-6-3"
+         transform="matrix(0.77554419,0,0,0.66443315,128.20303,207.6352)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="550,539 560,529 648,529 638,539 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3-7"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="638,539 648,529 648,599 638,609 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6-2"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1-6" />
+      </g>
+      <g
+         id="g105-6-6-1"
+         transform="matrix(0.77554419,0,0,0.66443315,124.25716,210.93584)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="648,529 638,539 550,539 560,529 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3-6"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="648,599 638,609 638,539 648,529 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6-5"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1-7" />
+      </g>
+      <g
+         id="g105-6-6-41"
+         transform="matrix(0.77554419,0,0,0.66443315,119.90735,214.3004)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="648,529 638,539 550,539 560,529 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3-20"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="648,599 638,609 638,539 648,529 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6-01"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1-4" />
+      </g>
+      <g
+         id="g105-6-6-0"
+         transform="matrix(0.77554419,0,0,0.66443315,115.49556,218.51014)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="648,529 638,539 550,539 560,529 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3-71"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="648,599 638,609 638,539 648,529 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6-7"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1-77" />
+      </g>
+      <g
+         id="g105-6-6-33"
+         transform="matrix(0.77554419,0,0,0.66443315,111.55206,222.00782)"
+         style="stroke-width:2.08859">
+        <polygon
+           points="648,529 638,539 550,539 560,529 "
+           fill="#ffd6a6"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon36-1-3-5"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <polygon
+           points="648,599 638,609 638,539 648,529 "
+           fill="#d9853a"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="polygon37-8-6-9"
+           transform="translate(-0.38858103,-5.0515535)" />
+        <rect
+           x="549.61139"
+           y="533.94843"
+           width="88"
+           height="70"
+           fill="#efa55c"
+           stroke="#26394c"
+           stroke-width="1.87973"
+           id="rect37-4-1-98" />
+      </g>
+    </g>
+    <g
+       id="g109"
+       transform="translate(-0.00808844,-26.478742)">
+      <text
+         x="594"
+         y="634"
+         text-anchor="middle"
+         class="label"
+         id="text37">Bottleneck</text>
+      <text
+         x="594"
+         y="650"
+         text-anchor="middle"
+         class="small"
+         id="text38">128 x 25 x 25</text>
+    </g>
+    <text
+       x="731.50464"
+       y="504.31577"
+       text-anchor="middle"
+       class="label"
+       id="text43">Decoder 3</text>
+    <text
+       x="729.30646"
+       y="517.01855"
+       text-anchor="middle"
+       class="small"
+       id="text44">64 x 50 x 50</text>
+    <text
+       x="862.19812"
+       y="413.52316"
+       text-anchor="middle"
+       class="label"
+       id="text49">Decoder 2</text>
+    <text
+       x="861.09906"
+       y="428.4241"
+       text-anchor="middle"
+       class="small"
+       id="text50">32 x 100 x 100</text>
+    <text
+       x="993.38702"
+       y="334.72131"
+       text-anchor="middle"
+       class="label"
+       id="text55">Decoder 1</text>
+    <text
+       x="988.99072"
+       y="346.32501"
+       text-anchor="middle"
+       class="small"
+       id="text56">16 x 200 x 200</text>
+  </g>
+  <g
+     id="connections"
+     inkscape:groupmode="layer"
+     inkscape:label="Connections">
+    <path
+       d="m 127.66851,275.05155 h 9.23122"
+       class="flow"
+       id="path56" />
+    <path
+       d="m 246.33217,273 h 15.52118 v 91 h 17.15499"
+       class="flow"
+       id="path57" />
+    <path
+       d="m 358.76614,364 h 30.90732 v 92 h 26.69268"
+       class="flow"
+       id="path58" />
+    <path
+       d="m 488.47721,456 h 40.4092 v 118 h 34.89885"
+       class="flow"
+       id="path59" />
+    <text
+       x="278.98337"
+       y="267.04434"
+       text-anchor="middle"
+       class="small"
+       id="text59">MaxPool 2x2</text>
+    <text
+       x="388.44568"
+       y="354.38135"
+       text-anchor="middle"
+       class="small"
+       id="text60">MaxPool 2x2</text>
+    <text
+       x="519.50464"
+       y="448.75839"
+       text-anchor="middle"
+       class="small"
+       id="text61">MaxPool 2x2</text>
+    <path
+       d="m 625.64017,572.42719 h 46.58948 v -100.424"
+       class="flow"
+       id="path61" />
+    <path
+       d="m 687.94291,456.38858 h 8"
+       class="flow"
+       id="path62" />
+    <path
+       d="m 768.82131,455.86527 h 28.8553 v -76.5161"
+       class="flow"
+       id="path63" />
+    <path
+       d="m 811.83579,364.00001 h 10.46719"
+       class="flow"
+       id="path64" />
+    <path
+       d="m 902.1208,357.15196 h 13.00742 v -68.66704"
+       class="flow"
+       id="path65" />
+    <path
+       d="m 933.13504,271.25138 h 6.27298"
+       class="flow"
+       id="path66" />
+    <text
+       x="657.84674"
+       y="586.89948"
+       text-anchor="start"
+       class="small"
+       id="text66">Up 2x2</text>
+    <text
+       x="784.09906"
+       y="468.41339"
+       text-anchor="start"
+       class="small"
+       id="text67">Up 2x2</text>
+    <text
+       x="908.49536"
+       y="369.7106"
+       text-anchor="start"
+       class="small"
+       id="text68">Up 2x2</text>
+    <path
+       d="M 226.00284,204.98262 V 108.97293 H 915.45427 V 259.11574"
+       class="skip"
+       id="path68" />
+    <path
+       d="M 355,310.44358 V 131.95986 H 797 V 348.6164"
+       class="skip"
+       id="path69" />
+    <path
+       d="M 490,404.28797 V 155.0137 h 182 v 285.87406"
+       class="skip"
+       id="path70" />
+    <text
+       x="573"
+       y="103"
+       text-anchor="middle"
+       class="label blue-text"
+       id="text70">Skip concatenations</text>
+  </g>
+  <g
+     id="concat-nodes"
+     inkscape:groupmode="layer"
+     inkscape:label="Concatenation nodes">
+    <g
+       id="concat-3"
+       inkscape:label="Concatenate">
+      <circle
+         cx="672"
+         cy="456"
+         r="13"
+         fill="#B9D99D"
+         stroke="#5F8E43"
+         stroke-width="1.3"
+         id="circle70" />
+      <text
+         x="672"
+         y="460"
+         text-anchor="middle"
+         class="label"
+         id="text71">C</text>
+    </g>
+    <g
+       id="concat-2"
+       inkscape:label="Concatenate"
+       transform="translate(0.58287155,-0.19429052)">
+      <circle
+         cx="797"
+         cy="364"
+         r="13"
+         fill="#b9d99d"
+         stroke="#5f8e43"
+         stroke-width="1.3"
+         id="circle71" />
+      <text
+         x="797"
+         y="368"
+         text-anchor="middle"
+         class="label"
+         id="text72">C</text>
+    </g>
+    <g
+       id="concat-1"
+       inkscape:label="Concatenate"
+       transform="translate(-2.1981463)">
+      <circle
+         cx="917"
+         cy="273"
+         r="13"
+         fill="#b9d99d"
+         stroke="#5f8e43"
+         stroke-width="1.3"
+         id="circle72" />
+      <text
+         x="917"
+         y="277"
+         text-anchor="middle"
+         class="label"
+         id="text73">C</text>
+    </g>
+  </g>
+  <g
+     id="output-head"
+     inkscape:groupmode="layer"
+     inkscape:label="Output head">
+    <path
+       d="m 1049.9164,266.00553 h 24.7839"
+       class="flow"
+       id="path73" />
+    <g
+       id="g112"
+       transform="translate(-1.9429053,6.2172965)">
+      <polygon
+         points="1066,216 1115,216 1107,224 1058,224 "
+         fill="#d0e5f7"
+         stroke="#26394c"
+         stroke-width="0.9"
+         id="polygon75"
+         transform="translate(20.206214,-13.600336)" />
+      <polygon
+         points="1115,216 1115,314 1107,322 1107,224 "
+         fill="#0b2b4c"
+         stroke="#26394c"
+         stroke-width="0.9"
+         id="polygon76"
+         transform="translate(20.206214,-13.600336)" />
+      <rect
+         x="1078.2062"
+         y="210.39966"
+         width="49"
+         height="98"
+         fill="#123a63"
+         stroke="#26394c"
+         stroke-width="0.9"
+         id="rect76" />
+    </g>
+    <text
+       x="1101.8176"
+       y="259.78271"
+       text-anchor="middle"
+       class="label white"
+       id="text77"><tspan
+         x="1101.8176"
+         dy="0"
+         id="tspan76">1x1</tspan><tspan
+         x="1101.8176"
+         dy="16"
+         id="tspan77">Conv</tspan></text>
+    <text
+       x="1135.8546"
+       y="337.65787"
+       text-anchor="middle"
+       class="label"
+       id="text78">SIF map</text>
+    <text
+       x="1141.8995"
+       y="353.10834"
+       text-anchor="middle"
+       class="small"
+       id="text79">1 x 200 x 200</text>
+  </g>
+  <g
+     id="aggregate-supervision"
+     inkscape:groupmode="layer"
+     inkscape:label="Aggregate supervision">
+    <path
+       d="M 1105.6686,314.43293 V 435.06955"
+       class="flow"
+       id="path80"
+       style="fill:#88aa00" />
+    <rect
+       x="952"
+       y="437"
+       width="82"
+       height="62"
+       rx="7"
+       fill="#EEF5FB"
+       stroke="#6D9FD0"
+       stroke-width="1.0"
+       id="rect80" />
+    <text
+       x="993"
+       y="465"
+       text-anchor="middle"
+       class="label"
+       id="text81"><tspan
+         x="993"
+         dy="0"
+         id="tspan80">Footprint</tspan><tspan
+         x="993"
+         dy="14"
+         id="tspan81">weights</tspan></text>
+    <path
+       d="m 1034.1142,467.99999 h 28.3003"
+       class="blue-flow"
+       id="path81" />
+    <rect
+       x="1064"
+       y="437"
+       width="88"
+       height="58"
+       rx="8"
+       fill="#D7EBC5"
+       stroke="#5F8E43"
+       stroke-width="1.2"
+       id="rect81" />
+    <text
+       x="1108"
+       y="462"
+       text-anchor="middle"
+       class="label"
+       id="text83"><tspan
+         x="1108"
+         dy="0"
+         id="tspan82">Weighted</tspan><tspan
+         x="1108"
+         dy="14"
+         id="tspan83">mean</tspan></text>
+    <path
+       d="m 1105.6687,495.54034 v 37.50451"
+       class="flow"
+       id="path83" />
+    <rect
+       x="1064"
+       y="535"
+       width="88"
+       height="58"
+       rx="8"
+       fill="#0B2B4C"
+       stroke="#0B2B4C"
+       stroke-width="1.2"
+       id="rect83" />
+    <text
+       x="1108"
+       y="560"
+       text-anchor="middle"
+       class="label white"
+       id="text85"><tspan
+         x="1108"
+         dy="0"
+         id="tspan84">Aggregate</tspan><tspan
+         x="1108"
+         dy="14"
+         id="tspan85">SIF</tspan></text>
+    <text
+       x="1123.4698"
+       y="577.66785"
+       text-anchor="middle"
+       class="small"
+       id="text86"
+       style="fill:#ffffff;stroke-width:1"
+       transform="scale(0.98559182,1.0146188)">Scalar</text>
+    <text
+       x="1109.6284"
+       y="395.56836"
+       text-anchor="middle"
+       class="label green-text"
+       id="text80">Aggregate supervision</text>
+  </g>
+  <g
+     id="architecture-keys"
+     inkscape:groupmode="layer"
+     inkscape:label="Architecture keys">
+    <rect
+       x="93.016541"
+       y="674.01813"
+       width="270.51379"
+       height="43.576488"
+       rx="4.809134"
+       fill="#eef5fb"
+       stroke="#6d9fd0"
+       stroke-width="0.886039"
+       id="rect86" />
+    <text
+       x="136.16011"
+       y="687.13788"
+       text-anchor="start"
+       class="label"
+       id="text87">Input Composition (19 channels)</text>
+    <text
+       x="105.29647"
+       y="704.25757"
+       text-anchor="start"
+       class="body"
+       id="text88">8 spectral/biophysical |</text>
+    <text
+       x="208.60965"
+       y="704.25641"
+       text-anchor="start"
+       class="body"
+       id="text89">9 cover fractions |</text>
+    <text
+       x="289.8685"
+       y="704.25641"
+       text-anchor="start"
+       class="body"
+       id="text90">month sin/cos</text>
+    <g
+       id="g116"
+       transform="translate(-33.521731,-1.6486097)">
+      <rect
+         x="443.46115"
+         y="663.44263"
+         width="272.1825"
+         height="63.801853"
+         rx="5.8850269"
+         fill="#fff7ea"
+         stroke="#d9853a"
+         stroke-width="0.999998"
+         id="rect90" />
+      <text
+         x="461.85745"
+         y="677.65002"
+         text-anchor="start"
+         class="label"
+         id="text91">Conv block</text>
+      <rect
+         x="458.53531"
+         y="687.94727"
+         width="67"
+         height="31"
+         rx="5"
+         fill="#ffffff"
+         stroke="#d9853a"
+         stroke-width="0.9"
+         id="rect91" />
+      <text
+         x="492.03531"
+         y="707.94727"
+         text-anchor="middle"
+         class="body"
+         id="text92">3x3 Conv</text>
+      <rect
+         x="539.53534"
+         y="687.94727"
+         width="81"
+         height="31"
+         rx="5"
+         fill="#ffffff"
+         stroke="#d9853a"
+         stroke-width="0.9"
+         id="rect92" />
+      <text
+         x="580.03534"
+         y="707.94727"
+         text-anchor="middle"
+         class="body"
+         id="text93">GroupNorm (8)</text>
+      <rect
+         x="634.53534"
+         y="687.94727"
+         width="45"
+         height="31"
+         rx="5"
+         fill="#ffffff"
+         stroke="#d9853a"
+         stroke-width="0.9"
+         id="rect93" />
+      <text
+         x="657.03534"
+         y="707.94727"
+         text-anchor="middle"
+         class="body"
+         id="text94">SiLU</text>
+      <text
+         x="614.23102"
+         y="802.97546"
+         text-anchor="middle"
+         class="body"
+         id="text95"
+         transform="scale(1.1324725,0.88302365)"
+         style="font-size:20px;stroke-width:1">x2</text>
+      <path
+         d="m 530.03532,703.77286 h 7"
+         class="flow"
+         id="path95" />
+      <path
+         d="m 624.90965,703.77286 h 7"
+         class="flow"
+         id="path96" />
+    </g>
+  </g>
+  <g
+     id="g115"
+     transform="translate(152.77117,-93.421217)">
+    <rect
+       x="576.75604"
+       y="754.58673"
+       width="312.29868"
+       height="66"
+       rx="6.7524037"
+       fill="#fff7ea"
+       stroke="#d9853a"
+       stroke-width="0.999999"
+       id="rect90-6"
+       style="fill:#f5effa;fill-opacity:1;stroke:#9b83ce;stroke-opacity:1" />
+    <text
+       x="590.20447"
+       y="769.12427"
+       text-anchor="start"
+       class="label"
+       id="text97-3"
+       style="font-weight:700;font-size:11px;font-family:Arial, Helvetica, sans-serif;fill:#172436">Decoder stage</text>
+    <rect
+       x="591.8302"
+       y="781.28949"
+       width="114.40689"
+       height="31"
+       rx="8.5378275"
+       fill="#ffffff"
+       stroke="#d9853a"
+       stroke-width="0.9"
+       id="rect91-3"
+       style="stroke:#8e83ce;stroke-opacity:1" />
+    <rect
+       x="719.46002"
+       y="781.28949"
+       width="86.051559"
+       height="31"
+       rx="5.3118243"
+       fill="#ffffff"
+       stroke="#d9853a"
+       stroke-width="0.9"
+       id="rect92-8"
+       style="stroke:#8e83ce;stroke-opacity:1" />
+    <rect
+       x="818.67999"
+       y="780.51233"
+       width="55.441196"
+       height="31"
+       rx="6.1601329"
+       fill="#ffffff"
+       stroke="#d9853a"
+       stroke-width="0.9"
+       id="rect93-9"
+       style="stroke:#8e83ce;stroke-opacity:1" />
+    <path
+       d="m 809.82526,795.56198 h 7"
+       class="flow"
+       id="path95-5"
+       style="fill:none;stroke:#26394c;stroke-width:1.8;marker-end:url(#arrow-dark-6)" />
+    <path
+       d="m 710.21478,795.75504 h 7"
+       class="flow"
+       id="path96-3"
+       style="fill:none;stroke:#26394c;stroke-width:1.8;marker-end:url(#arrow-dark-6)" />
+    <text
+       x="600.70062"
+       y="798.97229"
+       text-anchor="start"
+       class="body"
+       id="text98">2x2 transposed conv</text>
+    <text
+       x="723.14075"
+       y="798.97229"
+       text-anchor="start"
+       class="body"
+       id="text99">Concatenate Skip</text>
+    <text
+       x="820.15002"
+       y="799.68146"
+       text-anchor="start"
+       class="body"
+       id="text99-7"
+       style="font-size:10px;font-family:Arial, Helvetica, sans-serif;fill:#172436">Conv Block</text>
+  </g>
+</svg>

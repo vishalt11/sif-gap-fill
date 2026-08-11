@@ -1,0 +1,805 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="420mm"
+   height="297mm"
+   viewBox="0 0 1190.55 841.89"
+   role="img"
+   version="1.1"
+   id="svg59"
+   sodipodi:docname="area_to_point_mlp_architecture.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview59"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.61229019"
+     inkscape:cx="531.61067"
+     inkscape:cy="501.39624"
+     inkscape:window-width="1920"
+     inkscape:window-height="1010"
+     inkscape:window-x="2553"
+     inkscape:window-y="-6"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="title" />
+  <title
+     id="title1">Area-to-Point MLP</title>
+  <desc
+     id="desc1">Editable vector architecture diagram of the pixel-wise MLP and polygon weighted aggregation.</desc>
+  <defs
+     id="defs3">
+    <marker
+       id="arrow-dark"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0 0 L 10 5 L 0 10 z"
+         fill="#26394C"
+         id="path1" />
+    </marker>
+    <marker
+       id="arrow-blue"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0 0 L 10 5 L 0 10 z"
+         fill="#6D9FD0"
+         id="path2" />
+    </marker>
+    <marker
+       id="arrow-green"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0 0 L 10 5 L 0 10 z"
+         fill="#5F8E43"
+         id="path3" />
+    </marker>
+    <style
+       id="style3"><![CDATA[
+    text { font-family: Arial, Helvetica, sans-serif; fill: #172436; }
+    .title { font-size: 25px; font-weight: 700; fill: #0B2B4C; }
+    .subtitle { font-size: 11.5px; fill: #536273; }
+    .section { font-size: 11px; font-weight: 700; fill: #123A63; }
+    .label { font-size: 11px; font-weight: 700; }
+    .body { font-size: 10px; }
+    .small { font-size: 9.3px; fill: #536273; }
+    .white { fill: #FFFFFF; }
+    .blue-text { fill: #6D9FD0; }
+    .green-text { fill: #5F8E43; }
+    .flow { fill: none; stroke: #26394C; stroke-width: 1.8; marker-end: url(#arrow-dark); }
+    .skip { fill: none; stroke: #6D9FD0; stroke-width: 1.7; stroke-dasharray: 6 4; marker-end: url(#arrow-blue); }
+    .blue-flow { fill: none; stroke: #6D9FD0; stroke-width: 1.6; marker-end: url(#arrow-blue); }
+    .green-flow { fill: none; stroke: #5F8E43; stroke-width: 1.6; marker-end: url(#arrow-green); }
+  ]]></style>
+    <marker
+       id="arrow-dark-0"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0,0 10,5 0,10 Z"
+         fill="#26394c"
+         id="path1-9" />
+    </marker>
+    <marker
+       id="arrow-green-6"
+       viewBox="0 0 10 10"
+       refX="8.5"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M 0,0 10,5 0,10 Z"
+         fill="#5f8e43"
+         id="path3-8" />
+    </marker>
+  </defs>
+  <rect
+     width="1190.55"
+     height="841.89"
+     fill="#FFFFFF"
+     id="rect3" />
+  <g
+     id="title"
+     inkscape:groupmode="layer"
+     inkscape:label="Title">
+    <text
+       x="42"
+       y="48"
+       text-anchor="start"
+       class="title"
+       id="text3">Area-to-Point MLP</text>
+    <text
+       x="43"
+       y="71"
+       text-anchor="start"
+       class="subtitle"
+       id="text4">Shared pixel-wise regressor | 17 inputs features | 3,265 trainable parameters</text>
+    <line
+       x1="42"
+       y1="82"
+       x2="1148.55"
+       y2="82"
+       stroke="#123A63"
+       stroke-width="2"
+       id="line4" />
+  </g>
+  <g
+     id="model-panel"
+     inkscape:groupmode="layer"
+     inkscape:label="Model and aggregation panels">
+    <rect
+       x="30"
+       y="132"
+       width="980"
+       height="468"
+       rx="12"
+       fill="#FBFCFE"
+       stroke="#D8E0E8"
+       stroke-width="1.0"
+       id="rect4" />
+    <path
+       d="m 941.50415,479.65473 v -61.90117 h 86.95365"
+       class="green-flow"
+       id="path53-7"
+       style="fill:none;stroke:#5f8e43;stroke-width:1.6;marker-end:url(#arrow-green-6)" />
+    <g
+       id="g61-7"
+       transform="matrix(0.79139566,0,0,0.79172709,294.41704,70.409415)"
+       style="stroke-width:1.26332">
+      <g
+         id="g59-2-1"
+         transform="translate(5.544363,-30.256054)"
+         style="stroke-width:1.26332">
+        <polygon
+           points="406,268 292,268 303,257 417,257 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="polygon17-4-1"
+           transform="translate(-4.33071,12.559059)" />
+        <polygon
+           points="406,404 406,268 417,257 417,393 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="polygon18-5-5"
+           transform="translate(-4.33071,12.559059)" />
+        <rect
+           x="287.23621"
+           y="280.55905"
+           width="114"
+           height="136"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="rect18-5-2" />
+      </g>
+      <g
+         id="g60-7"
+         transform="translate(-107.40161,114.76382)"
+         style="stroke-width:1.26332">
+        <polygon
+           points="307,261 421,261 410,272 296,272 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="polygon15-6"
+           transform="translate(92.244122,-125.15752)" />
+        <polygon
+           points="410,272 421,261 421,397 410,408 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="polygon16-1"
+           transform="translate(92.677191,-124.72444)" />
+        <rect
+           x="388.24411"
+           y="146.84248"
+           width="114"
+           height="136"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="rect16-4" />
+      </g>
+      <g
+         id="g59-23"
+         transform="translate(-18.18898,-6.929132)"
+         style="stroke-width:1.26332">
+        <polygon
+           points="406,268 292,268 303,257 417,257 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="polygon17-2"
+           transform="translate(-4.33071,12.559059)" />
+        <polygon
+           points="406,404 406,268 417,257 417,393 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="polygon18-2"
+           transform="translate(-4.33071,12.559059)" />
+        <rect
+           x="287.23621"
+           y="280.55905"
+           width="114"
+           height="136"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="1.13699"
+           id="rect18-1" />
+      </g>
+    </g>
+    <text
+       x="1079.4016"
+       y="258.20474"
+       text-anchor="middle"
+       class="label green-text"
+       id="text6">Area aggregation</text>
+  </g>
+  <g
+     id="input-features"
+     inkscape:groupmode="layer"
+     inkscape:label="Input features">
+    <rect
+       x="52"
+       y="250"
+       width="168"
+       height="190"
+       rx="10"
+       fill="#EEF5FB"
+       stroke="#6D9FD0"
+       stroke-width="1.2"
+       id="rect6" />
+    <text
+       x="136"
+       y="278"
+       text-anchor="middle"
+       class="label"
+       id="text7">17 pixel features</text>
+    <rect
+       x="72"
+       y="306"
+       width="128"
+       height="30"
+       rx="5"
+       fill="#D0E5F7"
+       stroke="#6D9FD0"
+       stroke-width="0.9"
+       id="rect7" />
+    <text
+       x="136"
+       y="326"
+       text-anchor="middle"
+       class="body"
+       id="text8">13 spectral indices</text>
+    <rect
+       x="72"
+       y="348"
+       width="128"
+       height="30"
+       rx="5"
+       fill="#FFF0D1"
+       stroke="#E9B96E"
+       stroke-width="0.9"
+       id="rect8" />
+    <text
+       x="136"
+       y="368"
+       text-anchor="middle"
+       class="body"
+       id="text9">2 crop flags</text>
+    <rect
+       x="72"
+       y="390"
+       width="128"
+       height="30"
+       rx="5"
+       fill="#D7EBC5"
+       stroke="#5F8E43"
+       stroke-width="0.9"
+       id="rect9" />
+    <text
+       x="136"
+       y="410"
+       text-anchor="middle"
+       class="body"
+       id="text10">month sin/cos</text>
+    <text
+       x="136"
+       y="464"
+       text-anchor="middle"
+       class="small"
+       id="text11">Per 20 m pixel</text>
+  </g>
+  <g
+     id="learned-pixel-model"
+     inkscape:groupmode="layer"
+     inkscape:label="Learned pixel model">
+    <g
+       id="g61"
+       transform="translate(5.5120939,5.5120939)">
+      <g
+         id="g59-2"
+         transform="translate(5.544363,-30.256054)">
+        <polygon
+           points="303,257 417,257 406,268 292,268 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon17-4"
+           transform="translate(-4.33071,12.559059)" />
+        <polygon
+           points="417,257 417,393 406,404 406,268 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon18-5"
+           transform="translate(-4.33071,12.559059)" />
+        <rect
+           x="287.23621"
+           y="280.55905"
+           width="114"
+           height="136"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="rect18-5" />
+      </g>
+      <g
+         id="g60"
+         transform="translate(-107.40161,114.76382)">
+        <polygon
+           points="410,272 296,272 307,261 421,261 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon15"
+           transform="translate(92.244122,-125.15752)" />
+        <polygon
+           points="421,397 410,408 410,272 421,261 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon16"
+           transform="translate(92.677191,-124.72444)" />
+        <rect
+           x="388.24411"
+           y="146.84248"
+           width="114"
+           height="136"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="rect16" />
+      </g>
+      <g
+         id="g59"
+         transform="translate(-18.18898,-6.929132)">
+        <polygon
+           points="303,257 417,257 406,268 292,268 "
+           fill="#fff0d1"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon17"
+           transform="translate(-4.33071,12.559059)" />
+        <polygon
+           points="417,257 417,393 406,404 406,268 "
+           fill="#e9b96e"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon18"
+           transform="translate(-4.33071,12.559059)" />
+        <rect
+           x="287.23621"
+           y="280.55905"
+           width="114"
+           height="136"
+           fill="#f7d9a6"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="rect18" />
+      </g>
+    </g>
+    <text
+       x="330.811"
+       y="332.86615"
+       text-anchor="middle"
+       class="label"
+       id="text19"><tspan
+         x="330.811"
+         dy="0"
+         id="tspan18">Linear</tspan><tspan
+         x="330.811"
+         dy="18"
+         id="tspan19">17 -&gt; 64</tspan></text>
+    <rect
+       x="278.811"
+       y="432.99213"
+       width="114"
+       height="40"
+       rx="6"
+       fill="#fff7ea"
+       stroke="#e9b96e"
+       stroke-width="1"
+       id="rect19" />
+    <text
+       x="334.94489"
+       y="448.12598"
+       text-anchor="middle"
+       class="label"
+       id="text21"><tspan
+         x="334.94489"
+         dy="0"
+         id="tspan20">ReLU</tspan><tspan
+         x="334.94489"
+         dy="14"
+         id="tspan21">Dropout 0.1</tspan></text>
+    <text
+       x="562"
+       y="332"
+       text-anchor="middle"
+       class="label"
+       id="text27"><tspan
+         x="562"
+         dy="0"
+         id="tspan26">Linear</tspan><tspan
+         x="562"
+         dy="18"
+         id="tspan27">64 -&gt; 32</tspan></text>
+    <rect
+       x="504.80316"
+       y="405.27557"
+       width="110"
+       height="40"
+       rx="6"
+       fill="#fff7ea"
+       stroke="#e9b96e"
+       stroke-width="1"
+       id="rect27" />
+    <text
+       x="558.93701"
+       y="421.27557"
+       text-anchor="middle"
+       class="label"
+       id="text29"><tspan
+         x="558.93701"
+         dy="0"
+         id="tspan28">ReLU</tspan><tspan
+         x="558.93701"
+         dy="14"
+         id="tspan29">Dropout 0.1</tspan></text>
+    <g
+       id="g63"
+       transform="translate(1.837365,-9.4930511)">
+      <polygon
+         points="716,301 726,291 804,291 794,301 "
+         fill="#d0e5f7"
+         stroke="#26394c"
+         stroke-width="0.9"
+         id="polygon29" />
+      <polygon
+         points="794,301 804,291 804,369 794,379 "
+         fill="#6d9fd0"
+         stroke="#26394c"
+         stroke-width="0.9"
+         id="polygon30" />
+      <g
+         id="g62"
+         transform="translate(-6.4307763,14.086462)">
+        <polygon
+           points="722,287 800,287 790,297 712,297 "
+           fill="#d0e5f7"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon31" />
+        <polygon
+           points="800,287 800,365 790,375 790,297 "
+           fill="#6d9fd0"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="polygon32" />
+        <rect
+           x="712"
+           y="297"
+           width="78"
+           height="78"
+           fill="#9fc5ea"
+           stroke="#26394c"
+           stroke-width="0.9"
+           id="rect32" />
+      </g>
+    </g>
+    <text
+       x="751"
+       y="329"
+       text-anchor="middle"
+       class="label"
+       id="text33"><tspan
+         x="751"
+         dy="0"
+         id="tspan32">Linear</tspan><tspan
+         x="751"
+         dy="17"
+         id="tspan33">32 -&gt; 1</tspan></text>
+    <rect
+       x="860"
+       y="289"
+       width="132"
+       height="94"
+       rx="10"
+       fill="#0B2B4C"
+       stroke="#0B2B4C"
+       stroke-width="1.2"
+       id="rect33" />
+    <text
+       x="926"
+       y="329"
+       text-anchor="middle"
+       class="label white"
+       id="text35"><tspan
+         x="926"
+         dy="0"
+         id="tspan34">20 m pixel</tspan><tspan
+         x="926"
+         dy="18"
+         id="tspan35">SIF</tspan></text>
+    <text
+       x="925.13385"
+       y="362.93701"
+       text-anchor="middle"
+       class="small"
+       fill="#D7E7F5"
+       id="text36"
+       style="fill:#ffffff">Scalar</text>
+    <path
+       d="M 219.93109,335.99998 H 272.5392"
+       class="flow"
+       id="path36" />
+    <path
+       d="m 424.0813,336.00057 h 81.33513"
+       class="flow"
+       id="path37" />
+    <path
+       d="m 625.80368,336.00001 h 80.1831"
+       class="flow"
+       id="path38" />
+    <path
+       d="m 805.99999,335.99999 h 51.69644"
+       class="flow"
+       id="path39" />
+    <path
+       d="m 992.4879,336.00001 h 35.3085"
+       class="flow"
+       id="path40" />
+    <path
+       d="m 278,228.07617 v -15 h 528 v 15"
+       fill="none"
+       stroke="#6d9fd0"
+       stroke-width="1.4"
+       stroke-dasharray="5, 3"
+       id="path41" />
+    <text
+       x="538.32526"
+       y="200.85126"
+       text-anchor="middle"
+       class="label blue-text"
+       id="text41">Shared across pixels</text>
+  </g>
+  <g
+     id="area-aggregation"
+     inkscape:groupmode="layer"
+     inkscape:label="Area aggregation">
+    <rect
+       x="1030"
+       y="279"
+       width="105"
+       height="165.91508"
+       rx="9"
+       fill="#d7ebc5"
+       stroke="#5f8e43"
+       stroke-width="1.43514"
+       id="rect41" />
+    <text
+       x="1085.0984"
+       y="348.51968"
+       text-anchor="middle"
+       class="label"
+       id="text43"><tspan
+         x="1085.0984"
+         dy="0"
+         id="tspan41">Weighted</tspan><tspan
+         x="1085.0984"
+         dy="16"
+         id="tspan42">polygon</tspan><tspan
+         x="1085.0984"
+         dy="16"
+         id="tspan43">mean</tspan></text>
+    <rect
+       x="891.68854"
+       y="478.96188"
+       width="103"
+       height="58"
+       rx="7"
+       fill="#eef5fb"
+       stroke="#6D9FD0"
+       stroke-width="1"
+       id="rect43"
+       style="stroke:#5f8e43;stroke-opacity:1" />
+    <text
+       x="944.1073"
+       y="502.96191"
+       text-anchor="middle"
+       class="label"
+       id="text45"
+       style="fill:#668000"><tspan
+         x="944.1073"
+         dy="0"
+         id="tspan44"
+         style="fill:#668000">Pixel weights</tspan><tspan
+         x="944.1073"
+         dy="14"
+         id="tspan45"
+         style="fill:#668000">Group index</tspan></text>
+    <path
+       d="m 1083.2247,445.58395 v 51.49662"
+       class="flow"
+       id="path46" />
+    <rect
+       x="1029.3876"
+       y="499.47916"
+       width="105"
+       height="72"
+       rx="9"
+       fill="#0b2b4c"
+       stroke="#0b2b4c"
+       stroke-width="1.2"
+       id="rect46" />
+    <text
+       x="1083.6385"
+       y="516.4931"
+       text-anchor="middle"
+       class="label white"
+       id="text47"
+       style="stroke-width:0.999999"><tspan
+         sodipodi:role="line"
+         id="tspan64"
+         x="1083.6385"
+         y="516.4931"
+         style="stroke-width:0.999999"><tspan
+           x="1083.6385"
+           id="tspan46"
+           style="stroke-width:0.999999">Predicted</tspan></tspan><tspan
+         sodipodi:role="line"
+         id="tspan65"
+         x="1083.6385"
+         y="530.2431"
+         style="stroke-width:0.999999"><tspan
+           x="1083.6385"
+           dy="0"
+           id="tspan66"
+           style="stroke-width:0.999999">Polygon</tspan><tspan
+           x="1083.6385"
+           dy="12.433883"
+           id="tspan47"
+           style="stroke-width:0.999999">SIF</tspan></tspan></text>
+    <text
+       x="1083.4187"
+       y="555.88574"
+       text-anchor="middle"
+       class="small"
+       fill="#D7E7F5"
+       id="text48"
+       style="fill:#ffffff">Scalar</text>
+  </g>
+  <g
+     id="training-objective"
+     inkscape:groupmode="layer"
+     inkscape:label="Training objective">
+    <g
+       id="g64"
+       transform="translate(0.866142,-58.897656)">
+      <rect
+         x="395.93707"
+         y="675.65387"
+         width="704.01556"
+         height="90.945595"
+         rx="9.6440496"
+         fill="#fafcf8"
+         stroke="#5f8e43"
+         stroke-width="1.1"
+         stroke-dasharray="6, 4"
+         id="rect48" />
+      <text
+         x="404.14172"
+         y="690.52759"
+         text-anchor="start"
+         class="label green-text"
+         id="text49">Training objective</text>
+      <rect
+         x="500"
+         y="700"
+         width="130"
+         height="50"
+         rx="7"
+         fill="#eef5fb"
+         stroke="#6d9fd0"
+         stroke-width="1"
+         id="rect49" />
+      <text
+         x="565"
+         y="719"
+         text-anchor="middle"
+         class="label"
+         id="text50"><tspan
+           x="565"
+           dy="0"
+           id="tspan49">Observed</tspan><tspan
+           x="565"
+           dy="14"
+           id="tspan50">polygon SIF</tspan></text>
+      <rect
+         x="842"
+         y="700"
+         width="124"
+         height="50"
+         rx="7"
+         fill="#fff7ea"
+         stroke="#d9853a"
+         stroke-width="1"
+         id="rect50" />
+      <text
+         x="903.13385"
+         y="722.46454"
+         text-anchor="middle"
+         class="label"
+         id="text52"><tspan
+           x="903.13385"
+           dy="0"
+           id="tspan51">Huber loss</tspan><tspan
+           x="903.13385"
+           dy="14"
+           id="tspan52">delta = 0.1</tspan></text>
+      <path
+         d="M 630.20472,724.99999 H 839.94715"
+         class="blue-flow"
+         id="path52" />
+    </g>
+    <path
+       d="m 1085.4585,572.13686 v 91.303 H 968.1512"
+       class="green-flow"
+       id="path53" />
+  </g>
+  <g
+     id="forward-key"
+     inkscape:groupmode="layer"
+     inkscape:label="Forward path key" />
+</svg>
