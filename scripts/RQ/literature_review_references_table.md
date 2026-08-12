@@ -316,4 +316,182 @@ these comparisons demonstrate usefulness but are not direct measurements of SIF 
 - **Thesis-use note:** coSIF is methodologically distinct because it exploits the spatial covariance of SIF and returns uncertainty for each gap-filled value. Its contiguous-block validation is well aligned with the practical task of predicting genuinely unobserved areas. The method improves uncertainty characterization more clearly than point accuracy, and its 0.05-degree monthly implementation does not itself produce Sentinel-2-scale spatial detail.
 
 
-## Section 2 - Crop Yield Prediction
+## Section 2 - Crop Yield and GPP Estimation from Remote Sensing
+
+The cleaned folder contains 22 unique and relevant publications. The papers remain in their current numbered order and are intentionally not divided into methodological groups yet. Numerical values are recorded only when they are clearly reported; otherwise the corresponding field is marked **NA**.
+
+### 1. Saxony regional yield uncertainty
+
+- **Reference:** Crop Yield Estimation Uncertainties at the Regional Scale for Saxony, Germany.
+- **Target, scope, and design:** Regional yields of winter wheat, winter barley, winter rapeseed, silage maize, potato, and sugar beet in Saxony, Germany. Random-forest models were fitted with 2016--2022 data for either all of Saxony or individual agriculturally comparable regions (ACRs), and 2015 was withheld for prediction.
+- **Inputs/model:** Weather and regional agricultural/yield data; random forest; separate crop, prediction-date, and geographic model configurations.
+- **Reported results:** Performance varied strongly among crops and regions. For winter wheat in the representative ACR 2, the 2015 prediction had RMSE = 2.33 dt ha$^{-1}$ and RRMSE = 2.88%, compared with RMSE = 16.65 dt ha$^{-1}$ and RRMSE = 20.56% for the Saxony-wide model. Later-season inputs generally improved cereal forecasts.
+- **Validation note:** The withheld-year test is useful, but the study reports substantial overfitting and unstable predictions for some crop-region combinations. Models trained within homogeneous ACRs generally performed better than one state-wide model.
+
+### 2. SIF benefit for crop-yield prediction
+
+- **Reference:** Assessing the Benefit of Satellite-Based Solar-Induced Chlorophyll Fluorescence in Crop Yield Prediction.
+- **Target, scope, and design:** In-season prediction of U.S. county-level crop yields using observations available from approximately April to July/August.
+- **Inputs/model:** Coarse GOME-2 SIF, statistically downscaled SIF, SIF-derived productivity metrics, MODIS NDVI, and MODIS GPP; county fixed-effects/statistical yield models.
+- **Reported results:** Coarse-resolution SIF and NDVI had broadly similar out-of-sample in-season predictive ability. Downscaled SIF performed worse than the original coarse SIF, MODIS GPP performed worse than NDVI, and NDVI was more useful during drought conditions. Exact summary RMSE/$R^2$ values: **NA**.
+- **Validation note:** The paper is important because it evaluates whether SIF adds predictive value rather than assuming that its closer physiological link to photosynthesis automatically improves yield forecasts.
+
+### 3. Spaceborne SIF crop productivity
+
+- **Reference:** Improving the Monitoring of Crop Productivity Using Spaceborne Solar-Induced Fluorescence.
+- **Target, scope, and design:** U.S. crop productivity and county yields during 2007--2012.
+- **Inputs/model:** GOME-2 SIF interpreted with crop stoichiometry, C3/C4 photosynthetic pathways, and respiration losses; county agricultural statistics provide the benchmark.
+- **Reported results:** The pathway-aware SIF framework represented crop productivity better than the traditional remote-sensing approaches tested and could infer effects of high temperature on autotrophic respiration and carbon-use efficiency. Exact overall RMSE/$R^2$ values: **NA**.
+- **Validation note:** The approach moves beyond a direct empirical SIF--yield regression, but relies on assumptions and parameters used to convert photosynthetic carbon uptake into harvested production.
+
+### 4. Multi-year field wheat yield
+
+- **Reference:** Prediction of Multi-Year Winter Wheat Yields at the Field Level with Satellite and Climatological Data.
+- **Target, scope, and design:** Measured field-level winter-wheat yields, ranging from 49 to 102 dt ha$^{-1}$, in three regions of southern Germany during 2016--2018.
+- **Inputs/model:** Sentinel-2 bands and the NDRE, REIP, and NDWI indices; precipitation; reference/crop evapotranspiration; and crop-water-requirement variables. Stepwise linear regression and random forest were compared.
+- **Reported results:** The best model, using all raw Sentinel-2 bands together with evapotranspiration and precipitation, explained 84% of yield variance with RMSE = 5.6 dt ha$^{-1}$. An NDWI-based crop-water-requirement model explained 79% with RMSE = 6.46 dt ha$^{-1}$.
+- **Validation note:** Spectral indices describing within-field variability did not necessarily improve predictions over climate information. The small multi-year regional sample may limit transfer to other environments.
+
+### 5. NCP SIF wheat-yield machine learning
+
+- **Reference:** Modeling of Winter Wheat Yield Prediction Based on Solar-Induced Chlorophyll Fluorescence by Machine Learning Methods.
+- **Target, scope, and design:** Municipal winter-wheat yields for 58 municipalities across five provinces of the North China Plain, 2007--2020. Models used repeated train/test splits for 2007--2019, followed by an independent 2020 prediction.
+- **Inputs/model:** SIF; NIRv, NDVI, EVI, and EVI2; precipitation, soil moisture, minimum temperature, vapour-pressure deficit, and solar radiation; and soil pH, cation-exchange capacity, sand, silt, and organic matter. BP neural network, random forest, XGBoost, SVM, and linear regression were compared.
+- **Reported results:** In repeated tests, SIF-based XGBoost obtained mean $R^2$ = 0.739 and standardized RMSE = 0.505; SIF-based random forest obtained $R^2$ = 0.731 and RMSE = 0.512. For independent 2020 prediction, SIF-based XGBoost achieved $R^2$ = 0.87 and RMSE = 352.21 kg ha$^{-1}$; SIF+NIRv random forest achieved $R^2$ = 0.86 and RMSE = 370.35 kg ha$^{-1}$.
+- **Validation note:** SIF generally outperformed NIRv and the climate/soil-only configurations, but combining SIF and NIRv did not always improve the model. Random forest was reported as comparatively stable across experiments.
+
+### 6. Lightweight Australian wheat model
+
+- **Reference:** A Lightweight SIF-Based Crop Yield Estimation Model: A Case Study of Australian Wheat.
+- **Target, scope, and design:** Australian regional and state-level wheat production during 2019--2022.
+- **Inputs/model:** Satellite SIF, air temperature, dew-point temperature, soil water, and vapour-pressure deficit. A lightweight process-guided model estimates the fraction of open PSII reaction centres ($q_L$), GPP, and then wheat yield/production.
+- **Reported results:** Regional production estimates achieved $R^2$ = 0.86, RMSE = 91 kilotons, and relative RMSE = 7.24%. State-level estimates achieved $R^2$ = 0.91, RMSE = 1,509 kilotons, and relative RMSE = 14.13%.
+- **Validation note:** Errors are affected by the coarse SIF resolution and uncertainty in harvested area. The empirical relationship involving vapour-pressure deficit changes above approximately 0.80 kPa and may require recalibration elsewhere.
+
+### 7. Scalable MLR-SIF yield framework
+
+- **Reference:** A Scalable Crop Yield Estimation Framework Based on Remote Sensing of Solar-Induced Chlorophyll Fluorescence (SIF).
+- **Target, scope, and design:** Corn yield in 210 counties of Indiana, Illinois, Iowa, and Nebraska during 2015--2020, excluding 2017, and wheat yield in 55 districts of the Indian Indo-Gangetic Plain during 2015--2017.
+- **Inputs/model:** OCO-2 SIF, MODIS NDVI/NIR/fPAR for fluorescence escape probability, MERRA-2 PAR, MODIS NPP:GPP ratios, harvested area, and harvest index. A mechanistic light-reaction (MLR) model was compared with ANN and random forest.
+- **Reported results:** In the U.S. case, calibrated MLR obtained $R^2$ = 0.66 and NRMSE = 6.31%, close to ANN ($R^2$ = 0.67; NRMSE = 6.37%) and random forest ($R^2$ = 0.69; NRMSE = 6.44%). In India, calibrated MLR obtained $R^2$ = 0.53 and NRMSE = 15.2%, outperforming ANN ($R^2$ = 0.41; NRMSE = 18.2%) and random forest ($R^2$ = 0.39; NRMSE = 18.8%).
+- **Validation note:** The mechanism-guided model was more robust where labelled yields and crop-pure SIF observations were limited. Mixed satellite footprints and cloud cover were important limitations in India.
+
+### 8. Ground-to-space crop productivity
+
+- **Reference:** From the Ground to Space: Using Solar-Induced Chlorophyll Fluorescence to Estimate Crop Productivity.
+- **Target, scope, and design:** Corn and soybean productivity from field/tower measurements to TROPOMI and U.S. county scales, with a major focus on Iowa and the U.S. Corn Belt.
+- **Inputs/model:** Field PhotoSpec SIF, eddy-covariance GPP, SCOPE simulations, TROPOMI SIF, USDA county statistics, planted area, and C3/C4 crop fractions.
+- **Reported results:** Area-weighted TROPOMI SIF explained tower seasonal GPP with $R^2$ = 0.89. County-level SIF explained productivity with $R^2$ = 0.72, increasing to $R^2$ = 0.86 after accounting for planted area and C3/C4 composition; the corresponding NPP relationship had $R^2$ = 0.71.
+- **Validation note:** C4 crops had a GPP:SIF ratio approximately 30--50% larger than C3 crops. Mixed crop footprints, cloud-related sampling, high-light saturation, and canopy escape effects complicate direct scaling.
+
+### 9. Belgium NDVI wheat yield
+
+- **Reference:** Estimating Farm Wheat Yields from NDVI and Meteorological Data.
+- **Target, scope, and design:** Farm/field winter-wheat yields in northern Belgium: 666 fields in 2016, 609 in 2017, and 210 in 2018.
+- **Inputs/model:** Integrated seasonal NDVI (aNDVI), maximum NDVI, and monthly precipitation; random-forest prediction.
+- **Reported results:** The NDVI summaries were weak yield predictors. Precipitation during the tillering and anthesis periods was considerably more informative and produced $R^2$ = 0.66.
+- **Validation note:** The study shows that a structural greenness index can miss stress at yield-sensitive stages and that its yield relationship changes among years and environments.
+
+### 10. Practical SIF-$q_L$ crop model
+
+- **Reference:** A Practical SIF-Based Crop Model for Predicting Crop Yields by Quantifying the Fraction of Open PSII Reaction Centers ($q_L$).
+- **Target, scope, and design:** Corn and soybean in more than 700 counties across 12 U.S. Midwestern states during 2018--2023, with evaluation at two AmeriFlux sites.
+- **Inputs/model:** Satellite top-of-canopy SIF, air temperature, vapour-pressure deficit, soil moisture, leaf-scale $q_L$ measurements, and crop phenology. The process-guided model estimates $q_L$, GPP, and yield.
+- **Reported results:** Leaf-level $q_L$ validation obtained $R^2>0.95$ and RMSE $<0.05$. GPP estimation achieved $R^2$ = 0.85 for corn and 0.81 for soybean. County-yield prediction averaged $R^2$ = 0.78; corn obtained $R^2$ = 0.76 and RMSE = 14.47 bu acre$^{-1}$, while soybean obtained $R^2$ = 0.81 and RMSE = 4.09 bu acre$^{-1}$.
+- **Validation note:** $q_L$ helps represent stress-driven photosynthetic regulation that SIF magnitude alone may not capture. Crop-specific parameterization and coarse satellite footprints remain limitations.
+
+### 11. Regional GPP from downscaled SIF
+
+- **Reference:** Detecting Regional GPP Variations with Statistically Downscaled Solar-Induced Chlorophyll Fluorescence (SIF) Based on GOME-2 and MODIS Data.
+- **Target, scope, and design:** Regional GPP patterns evaluated against eddy-covariance tower observations.
+- **Inputs/model:** GOME-2 SIF downscaled through moving-window regression with MODIS NDVI, fPAR, soil-moisture index, and land-surface temperature; GPP was then retrieved from the downscaled SIF.
+- **Reported results:** The adaptive moving-window approach produced lower residuals and higher $R^2$ than fixed/global regressions and improved the representation of regional and seasonal GPP variations, including evergreen phenology. Exact overall GPP RMSE/$R^2$ values: **NA**.
+- **Validation note:** Eddy-covariance GPP is an independent physiological benchmark, but the apparent fine spatial variation still depends on the MODIS variables used to distribute coarse GOME-2 SIF.
+
+### 12. German ensemble crop yield
+
+- **Reference:** Ensemble Learning-Based Crop Yield Estimation: A Scalable Approach for Supporting Agricultural Statistics.
+- **Target, scope, and design:** Parcel- and district-level winter-wheat, winter-barley, and winter-rapeseed yields in two German federal states during 2019--2022, using approximately 140,000--155,000 parcels per year.
+- **Inputs/model:** Multi-source Earth-observation variables, meteorological variables, and soil information; six regression estimators combined by stacking and majority voting.
+- **Reported results:** Majority voting obtained parcel-level cross-validation scores of $R^2$ = 0.74 and nRMSE = 13.4% for winter wheat, $R^2$ = 0.68 and nRMSE = 16.9% for winter barley, and $R^2$ = 0.66 and nRMSE = 14.1% for winter rapeseed. District-level winter-wheat performance ranged from $R^2$ = 0.79--0.89 and nRMSE = 7.2--8.1%.
+- **Validation note:** Aggregating parcel predictions to districts reduced errors and supported 1 km yield mapping. The approach is scalable but requires extensive parcel/training-yield information and may hide within-district errors after aggregation.
+
+### 13. SIF-EC transfer-learning GPP
+
+- **Reference:** GPP Estimation by Transfer Learning with Combined Solar-Induced Chlorophyll Fluorescence and Eddy Covariance Data.
+- **Target, scope, and design:** Long-term global GPP estimation using spatially extensive SIF information and sparse eddy-covariance (EC) tower GPP.
+- **Inputs/model:** Three SIF-based GPP sources are used for source-domain pretraining, followed by fine-tuning with EC GPP. The proposed SIFEC-TL framework is compared with SIF-only machine learning (SIFML) and EC-only machine learning (ECML).
+- **Reported results:** The spatial $R^2$ improved by 0.132 relative to SIFML and by 0.036 relative to ECML. The transfer model also represented interannual extremes more effectively and remained relatively stable across the three source SIF products. Absolute overall RMSE/$R^2$: **NA**.
+- **Validation note:** Transfer learning combines the spatial coverage of SIF with the stronger ground constraint of tower GPP, but performance still depends on how representative the limited tower network is of global ecosystems.
+
+### 14. Sentinel-2 wheat-yield mapping
+
+- **Reference:** High Resolution Wheat Yield Mapping Using Sentinel-2.
+- **Target, scope, and design:** Within-field wheat yield in the United Kingdom using more than 8,000 combine-harvester yield observations from 39 fields.
+- **Inputs/model:** Sentinel-2 observations together with meteorological, topographic, and soil-moisture information; random-forest regression; 10 m output maps.
+- **Reported results:** Sentinel-2 alone obtained RMSE = 0.66 t ha$^{-1}$; adding environmental variables reduced RMSE to 0.61 t ha$^{-1}$. Mapped yields ranged from 4.09 to 12.22 t ha$^{-1}$ and gave an estimated production of approximately 289,000 t over the mapped landscape.
+- **Validation note:** The method demonstrates high-resolution spatial mapping but depends on combine-yield training data. Its single-season/region setup leaves temporal and geographic transferability uncertain.
+
+### 15. Reconstructed SIF versus GPP
+
+- **Reference:** How Well Do Recently Reconstructed Solar-Induced Fluorescence Datasets Model Gross Primary Productivity?
+- **Target, scope, and design:** Evaluation of CSIF, GOSIF, LUE-SIF, and HSIF against FLUXNET2015 and ICOS eddy-covariance GPP during 2007--2018 and the European 2018 drought.
+- **Inputs/model:** Four global reconstructed SIF datasets at 0.05 degree resolution and 4-day, 8-day, or monthly time steps; linear/statistical comparison with tower GPP and with NDVI, EVI, and NIRv.
+- **Reported results:** All four SIF products generally predicted GPP better than NDVI and EVI. Four-day CSIF and eight-day GOSIF were the strongest products in the reported comparisons. During drought, the SIF--GPP relationship weakened at roughly 30% of sites, primarily non-forest locations. Exact pooled RMSE/$R^2$: **NA**.
+- **Validation note:** This is an evaluation rather than a new GPP product. It shows that reconstruction quality and temporal resolution matter and that high average SIF--GPP agreement does not guarantee stable performance under drought.
+
+### 16. GOSIF drought crop productivity
+
+- **Reference:** Monitoring Drought Impacts on Crop Productivity of the U.S. Midwest with Solar-Induced Fluorescence: GOSIF Outperforms GOME-2 SIF and MODIS NDVI, EVI, and NIRv.
+- **Target, scope, and design:** Crop productivity and corn/soybean yields in the U.S. Midwest during 2008--2018, with emphasis on the 2012 drought.
+- **Inputs/model:** GOSIF, GOME-2 SIF, MODIS NDVI, EVI, and NIRv, eddy-covariance GPP, and agricultural yield statistics.
+- **Reported results:** In 2012, observed yield declined by 25%; GOSIF declined by 22%, whereas NDVI, EVI, and NIRv declined by only 4%, 10%, and 8%. Yield relationships gave $R^2$ = 0.91 for GOSIF, 0.89 for NIRv, 0.68 for EVI, and 0.48 for NDVI. Mean yield-estimation differences were 379.32 kg ha$^{-1}$ for GOSIF, 328.43 for EVI, and 503.67 for NIRv.
+- **Validation note:** GOSIF was much more responsive to drought-related productivity loss than greenness indices, but its advantage combines physiological sensitivity with the modelling choices used to reconstruct GOSIF.
+
+### 17. Sentinel-2 crop-model wheat yield
+
+- **Reference:** Predicting Wheat Yield at the Field Scale by Combining High-Resolution Sentinel-2 Satellite Imagery and Crop Modelling.
+- **Target, scope, and design:** Yield from 103 dryland wheat fields in northeastern Australia during 2016--2017.
+- **Inputs/model:** Sentinel-2 time series of structural indices (OSAVI and NDVI) and chlorophyll indices (CI and NDRE), combined with a crop-model water-stress index (SI).
+- **Reported results:** CI alone achieved $R^2$ = 0.76 and RMSE = 0.88 t ha$^{-1}$; OSAVI achieved $R^2$ = 0.74 and RMSE = 0.91 t ha$^{-1}$. The combined OSAVI+CI+SI model achieved cross-validated $R^2$ = 0.90 and RMSE = 0.56 t ha$^{-1}$, and independent-test $R^2$ = 0.93 and RMSE = 0.64 t ha$^{-1}$.
+- **Validation note:** Combining canopy structure, chlorophyll, and water stress clearly improved yield prediction. Relative errors remained large for very low-yielding fields.
+
+### 18. Northeast Germany sensor suitability
+
+- **Reference:** Suitability of Satellite Remote Sensing Data for Yield Estimation in Northeast Germany.
+- **Target, scope, and design:** Relationships between recorded cereal/canola yields and satellite observations in northeast Germany over 13 years, using 947 dense field-yield datasets and 755 satellite images.
+- **Inputs/model:** Six optical satellite sensors, 15 spectral indices, acquisition timing, soil, terrain, and field characteristics; field-wise correlation analysis rather than a single operational prediction model.
+- **Reported results:** Reported correlations ranged from approximately 0 to 0.94, although values above 0.75 were uncommon. Higher-resolution RapidEye and Sentinel-2 observations generally outperformed Landsat, and red-edge information was useful for cereals.
+- **Validation note:** Phenological timing and within-field heterogeneity strongly affected the relationships, while soil and relief were generally less influential. Because the study focuses on correlation, the highest values should not be interpreted as independent predictive accuracy.
+
+### 19. CONUS SIF winter-wheat yield
+
+- **Reference:** Winter Wheat Yield Prediction in the Conterminous United States Using Solar-Induced Chlorophyll Fluorescence Data and XGBoost and Random Forest Algorithms.
+- **Target, scope, and design:** County-level winter-wheat yield across the conterminous United States over 14 years.
+- **Inputs/model:** One SIF dataset, three vegetation indices including NIRv, 13 climate variables, and four soil variables; XGBoost and random forest.
+- **Reported results:** NIRv alone explained up to 64% of yield variation. Adding SIF increased explained variation to 69%, with the complete variable groups containing both unique and overlapping predictive information. Exact RMSE: **NA**.
+- **Validation note:** SIF provided a measurable but moderate improvement beyond vegetation indices. Broad national coverage introduces strong climate, soil, management, and phenological differences that tree models must learn from tabular covariates.
+
+### 20. German CNN wheat yield
+
+- **Reference:** Winter Wheat Yield Prediction Using Convolutional Neural Networks from Environmental and Phenological Data.
+- **Target, scope, and design:** Winter-wheat yield for 271 German counties using 1999--2019 data, with 2017, 2018, and 2019 used as temporal holdout years.
+- **Inputs/model:** Weekly minimum/maximum temperature, solar radiation, precipitation, relative humidity, and wind; soil variables; and sowing, flowering, and harvest phenology. A one-dimensional CNN was compared with eight baseline models.
+- **Reported results:** Relative to the strongest baseline, the CNN reduced RMSE by 7--14% and MAE by 3--15%, while increasing the correlation coefficient by 4--50%, depending on the holdout year. Absolute aggregate RMSE/$R^2$: **NA**.
+- **Validation note:** Temporal holdouts provide a stronger test than random sample splitting. Errors were spatially uneven, particularly in eastern/northeastern Germany, and the model lacks direct remote-sensing, cultivar, and management information.
+
+### 21. Spectral-index wheat yield
+
+- **Reference:** Yield Prediction in Wheat (Triticum aestivum L.) Using Spectral Reflectance Indices.
+- **Target, scope, and design:** Irrigated wheat under eight nitrogen treatments in central India over three winter seasons (2014--2017), evaluated at several phenological stages.
+- **Inputs/model:** Canopy hyperspectral reflectance converted to NDVI, NDWI, SAVI, and NDNI; stage-specific regression against measured grain and biomass yield.
+- **Reported results:** NDVI and NDWI were selected for the yield regressions. At heading, NDVI accounted for 96% of grain-yield variation and NDWI for 95%; the study describes the NDVI regression as producing approximately 96% accurate grain- and biomass-yield estimates.
+- **Validation note:** The relationships are strong within the controlled nitrogen experiment, but no geographically independent test is reported. The small experimental setting may overstate performance relative to operational regional prediction.
+
+### 22. SIF wheat heat-stress response
+
+- **Reference:** Satellite Sun-Induced Chlorophyll Fluorescence Detects Early Response of Winter Wheat to Heat Stress in the Indian Indo-Gangetic Plains.
+- **Target, scope, and design:** Winter-wheat response to the 2010 heatwave in the northwestern Indian Indo-Gangetic Plains.
+- **Inputs/model:** Satellite SIF, SIF yield/fluorescence yield, NDVI, EVI, temperature anomalies, absorbed-light information, and regional yield statistics.
+- **Reported results:** Official wheat yield decreased by approximately 6% relative to the previous year. The SIF-based estimate indicated a 13.9% reduction, compared with only 1.2% from NDVI and 0.4% from EVI. SIF detected stress in early March, while NDVI/EVI responded mainly in late March.
+- **Validation note:** SIF detected physiological heat stress earlier than greenness indices but overestimated the reported yield reduction. Coarse mixed pixels and the limited event/time series restrict direct operational generalization.
