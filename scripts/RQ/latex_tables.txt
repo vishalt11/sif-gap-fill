@@ -287,3 +287,540 @@ Raw all-footprint monthly SIF & 197 & 48 & 1.0874 & 1.2244 & 0.7911 & $-0.5311$ 
 \textit{Note:} NRMSE denotes normalized RMSE. The final column reports the lower and upper bootstrap bounds for RMSE. All continuous values are rounded to four decimal places.
 }
 \end{table}
+
+
+-------------------------------------------
+% SIF enhancement literature summary table
+% Requires the following packages in the thesis preamble:
+% \usepackage{longtable}
+% \usepackage{array}
+
+\newlength{\sifenhancementtablewidth}
+\setlength{\sifenhancementtablewidth}{\dimexpr\linewidth+2.1cm\relax}
+
+\begingroup
+\tiny
+\setlength{\tabcolsep}{1pt}
+\renewcommand{\arraystretch}{1.10}
+\setlength{\LTleft}{-1cm}
+\setlength{\LTright}{-1cm}
+
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.110\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.085\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.180\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.130\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.120\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.060\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.145\sifenhancementtablewidth}
+>{\raggedright\arraybackslash}p{0.130\sifenhancementtablewidth}@{}}
+
+\caption{Summary of SIF enhancement methods for reconstruction, spatial downscaling, forecasting, retrieval improvement, and geostatistical gap filling. The $\dagger$ indicates an unofficial acronym.}
+\label{tab:sif_enhancement_literature}\\
+\hline
+\textbf{Product} &
+\textbf{SIF source} &
+\textbf{Predictors} &
+\textbf{Model family} &
+\textbf{Spatio-Temporal resolution} &
+\textbf{Period} &
+\textbf{Internal validation metrics} &
+\textbf{External validation metrics} \\
+\hline
+\endfirsthead
+
+\multicolumn{8}{l}{\tablename\ \thetable{} - continued}\\
+\hline
+\textbf{Product} &
+\textbf{SIF source} &
+\textbf{Predictors} &
+\textbf{Model family} &
+\textbf{Spatial / temporal resolution} &
+\textbf{Period} &
+\textbf{Internal validation metrics} &
+\textbf{External validation metrics and data} \\
+\hline
+\endhead
+
+\hline
+\multicolumn{8}{r}{Continued on next page}\\
+\endfoot
+
+\hline
+\endlastfoot
+
+\multicolumn{8}{@{}l}{\textbf{Reconstruction (no aggregation constraint)}} 
+\vspace{2mm}\\
+
+GOSIF \cite{li2019global} &
+OCO-2 &
+MODIS EVI; PAR, VPD, air temperature &
+Cubist model trees &
+Global; $0.05^{\circ}$; 8-day &
+2000-2017 &
+$R^2=0.79$; RMSE $=0.07$ &
+FLUXNET GPP proxy: $R^2=0.73$ \\
+
+TanSIF \cite{ma2020generation} &
+TanSat &
+MODIS reflectance, NDVI, $\cos(\mathrm{SZA})$, air temperature &
+Random forest &
+Global; $0.05^{\circ}$; 4-day &
+2017-2019 &
+$R^2=0.73$-$0.81$; RMSE $=0.30$-$0.32$ &
+TROPOMI SIF: $R^2=0.73$ \\
+
+DOSIF \cite{yu2025dosif} &
+OCO-3 &
+MODIS 7-band reflectance; biome and temporal context &
+MSTWS + CatBoost &
+Global; $0.05^{\circ}$; daily &
+2001-2024 &
+$R^2=0.81$-$0.85$; RMSE $=0.07$-$0.08$ &
+Airborne CFIS: $R^2=0.75$; RMSE $=0.11$ \\
+
+RTSIF \cite{chen2022long} &
+TROPOMI &
+MODIS reflectance, LST and land cover; PAR; C3/C4 fractions &
+XGBoost &
+Global; $0.05^{\circ}$; 8-day &
+2001-2020 &
+$R^2=0.907$; RMSE $=0.062$ &
+PhotoSpec tower SIF: $R^2=0.754$-$0.84$ \\
+
+ROSIF \cite{he2025tracking} &
+OCO-3 &
+Eight GOCI reflectance bands &
+XGBoost &
+Liaoning; 500 m; 10:00/14:00 &
+2019-2020 &
+$R^2=0.598$-$0.684$; RMSE $=0.348$-$0.388$ &
+Drought proxies: SPEI $r=0.71$; SMZ $r=0.53$ \\
+
+ST-LGBM \cite{shen2022spatiotemporal} &
+OCO-2 &
+NIRv, PAR, VPD, temperature, land cover; spatial/temporal SIF factors &
+Constrained LightGBM &
+Global; $0.05^{\circ}$; 8-day &
+2014-2019 &
+$R^2=0.79$-$0.83$; RMSE $=0.07$ &
+TROPOMI SIF: annual $R^2=0.91$ \\
+
+SIFoco2\_005 \cite{yu2019high} &
+OCO-2 &
+MODIS 7-band reflectance; biome/time stratification &
+Feed-forward ANN &
+Global; $0.05^{\circ}$; 16-day &
+2014-2018 &
+$R^2=0.83$; RMSE $=0.065$ &
+Airborne CFIS outside swaths: $R^2=0.72$; slope $=0.96$ \\
+
+CSIF \cite{zhang2018global} &
+OCO-2 &
+MODIS red, NIR, blue and green reflectance &
+Feed-forward NN &
+Global; $0.05^{\circ}$; 4-day &
+2000-2017 &
+$R^2=0.786$; RMSE $=0.177$ &
+FLUXNET GPP proxy: median $R^2=0.64$; RMSE $=1.67$ \\
+
+\hline
+\multicolumn{8}{@{}l}{\textbf{Spatial downscaling}} \vspace{2mm}\\
+
+RF-GOSIF\textsuperscript{$\dagger$} \cite{zhang2024spatial} &
+GOSIF &
+MODIS NDVI and daytime LST &
+Random forest &
+Henan; 1 km; monthly &
+2001-2020 &
+Reaggregated GOSIF: $r=0.74$ &
+MODIS GPP proxy: $r=0.74$; crop yield: $r=0.89$-$0.93$ \\
+
+G2DSIF\textsuperscript{$\dagger$} \cite{duveiller2020spatially} &
+GOME-2 &
+NIRv, NDWI and afternoon LST &
+Semi-empirical LUE redistribution &
+Global; $0.05^{\circ}$; 8-day &
+2007-2018 &
+- &
+OCO-2 SIF: $r=0.813$-$0.825$; abs. bias $=0.0615$-$0.0630$ \\
+
+BCSIF \cite{hu2024spatially} &
+TROPOMI &
+MODIS reflectance, NDWI, $\cos(\mathrm{SZA})$; temperature, VPD, soil moisture &
+RF + bias correction &
+China; $0.005^{\circ}$; 16-day &
+2019-2020 &
+$R^2=0.887$; RMSE $=0.0716$ &
+ChinaSpec tower SIF: $R^2=0.798$; RMSE $=0.141$ \\
+
+CNN-GOSIF\textsuperscript{$\dagger$} \cite{zhang2020downscaling} &
+GOSIF &
+NDVI, EVI, daytime and nighttime LST &
+2D CNN &
+Henan; $0.008^{\circ}$; monthly &
+2013-2017 &
+Reaggregated GOSIF: $r\leq0.9174$ &
+MODIS GPP proxy: $r\leq0.8346$; corn yield: $r=-0.84$ \\
+
+DSIFRFK \cite{jin2024downscaling} &
+GOME &
+AVHRR NIRv, NDVI and NIR; temperature, radiation, precipitation &
+RF + residual kriging &
+East Asia; $0.05^{\circ}$; monthly &
+1995-2003 &
+$R^2=0.83$; RMSE $=0.08$ &
+Other SIF products: $r=0.73$-$0.89$; tower GPP: $R^2=0.61$-$0.99$ \\
+
+SIFnet \cite{gensheimer2022convolutional} &
+TROPOMI &
+Coarse SIF; MODIS reflectance/VIs; climate, soil, land cover, elevation &
+Residual CNN &
+CONUS; $0.005^{\circ}$; 16-day &
+2018-2021 &
+$R^2=0.92$; RMSE $=0.17$ &
+OCO-2/3 footprints: $R^2:0.57$-$0.62$; RMSE $:0.19$-$0.21$ \\
+
+TroDSIF \cite{chen2025improved} &
+TROPOMI &
+MODIS reflectance, NDVI, $\cos(\mathrm{SZA})$, air temperature &
+RF + Gaussian redistribution &
+Global; 500 m; 16-day &
+2018-2021 &
+Validation $R^2=0.8935$; RMSE $=0.064$; reaggregation $R^2=0.934$-$0.948$ &
+Six ChinaSpec sites: RMSE $=0.104$-$0.223$; MAE $=0.077$-$0.163$ \\
+
+HSIF \cite{zhang2023generating} &
+TROPOMI &
+Chlorophyll fPAR, fluorescence efficiency, escape probability, PAR, land cover &
+Physical LUE/radiative-transfer model &
+Global; 1 km; source-day/8-day &
+2018-2020 &
+- &
+OCO-2 total SIF: $R^2=0.78$; RMSE $=1.33$; tower GPP proxy: $R^2=0.70$ \\
+
+CNSIF \cite{du2025cnsif} &
+GOSIF &
+GOSIF, NIRv, EVI, NIR and LST from Landsat/Sentinel-2 &
+2D CNN + transfer learning &
+China; 500 m; monthly &
+2003-2022 &
+$R^2=0.8566$; RMSE $=0.089$ &
+Nine ChinaSpec sites: pooled $R^2=0.581$; RMSE $=0.152$; site $R^2=0.324$-$0.947$ \\
+
+\hline
+\multicolumn{8}{@{}l}{\textbf{Other and hybrid enhancement approaches}}\vspace{2mm} \\
+
+OCO2-FSIF\textsuperscript{$\dagger$} \cite{pais2025forecasting} &
+OCO-2 &
+Two lagged SIF fields, EVI, spatial and temporal variables &
+RF gap fill; Lasso/LightGBM forecast &
+India; ${\sim}1$ km; monthly/seasonal &
+2017-2019 &
+RMSE $=0.0355$-$0.0594$; MAPE $=16.91$-$19.22\%$ &
+- \\
+
+ANN-TroSIF\textsuperscript{$\dagger$} \cite{li2025more} &
+Matched OCO-2/3 &
+TROPOMI radiance spectra at 743-758 nm &
+Column-specific feed-forward ANNs &
+Global; native TROPOMI footprint; daily &
+2018-2024 &
+$R^2=0.8535$; RMSE $=0.217$ &
+Flux-tower GPP proxy: $R^2=0.45$-$0.79$ \\
+
+KED-SIF\textsuperscript{$\dagger$} \cite{tadic2024hybrid} &
+OCO-2 &
+CSIF external drift and covariance of nearby OCO-2 SIF &
+Kriging with external drift &
+Global; $0.05^{\circ}$; 4-day &
+2019 &
+$R^2=0.8523$; RMSE $=0.1556$ &
+- \\
+
+coSIF \cite{jacobson2023spatial} &
+OCO-2 &
+SIF/XCO$_2$ covariance and spatial basis functions &
+Multivariate cokriging &
+North America; $0.05^{\circ}$; monthly &
+2021 &
+Spatial blocks: RASPE $=0.56$-$0.58$; bias $=-0.06$-$0.01$ &
+- \\
+
+\end{longtable}
+\endgroup
+
+-------------------------------------------------------------
+
+% Crop yield and GPP literature summary table
+% crop yield table
+\newlength{\cropyieldtablewidth}
+\setlength{\cropyieldtablewidth}{\linewidth}
+
+\begingroup
+\tiny
+\setlength{\tabcolsep}{1pt}
+\renewcommand{\arraystretch}{1.10}
+\setlength{\LTcapwidth}{\cropyieldtablewidth}
+
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.110\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.100\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.150\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.140\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.120\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.140\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.060\cropyieldtablewidth}
+>{\raggedright\arraybackslash}p{0.120\cropyieldtablewidth}@{}}
+
+\caption{Summary of remote-sensing-based crop yield, crop productivity, and GPP studies. All RMSE values are reported in t ha$^{-1}$ units}.
+\label{tab:crop_yield_gpp_literature}\\
+\hline
+\textbf{Reference} &
+\textbf{Prediction target} &
+\textbf{Remote-sensing inputs} &
+\textbf{Additional predictors} &
+\textbf{Model / approach} &
+\textbf{Study area / scale} &
+\textbf{Period} &
+\textbf{Reported performance} \\
+\hline
+\endfirsthead
+
+\multicolumn{8}{l}{\tablename\ \thetable{} - continued}\\
+\hline
+\textbf{Reference} &
+\textbf{Prediction target} &
+\textbf{Remote-sensing inputs} &
+\textbf{Additional predictors} &
+\textbf{Model / approach} &
+\textbf{Study area / scale} &
+\textbf{Period} &
+\textbf{Reported performance} \\
+\hline
+\endhead
+
+\hline
+\multicolumn{8}{r}{Continued on next page}\\
+\endfoot
+
+\hline
+\endlastfoot
+
+\multicolumn{8}{@{}l}{\textbf{SIF-based yield, productivity, and stress estimation}}
+\vspace{2mm}\\
+
+Peng et al. \cite{peng2020assessing} &
+County crop yield &
+GOME-2/downscaled SIF; NDVI; MODIS GPP &
+County effects &
+Fixed-effects regression &
+United States; county &
+- &
+$R^2=0.85 - 0.89$; RMSE $=0.85$ \\
+
+Guan et al. \cite{guan2016improving} &
+Crop productivity &
+GOME-2 SIF &
+C3/C4 type; respiration; temperature &
+Process-guided conversion &
+United States; county &
+2007-2012 &
+- \\
+
+Zheng et al. \cite{zheng2025modeling} &
+Winter-wheat yield &
+SIF; NIRv, NDVI, EVI, EVI2 &
+Climate and soil &
+XGBoost; RF; ANN; SVM &
+North China Plain; municipality &
+2007-2020 &
+$R^2=0.87$; RMSE $=0.352$\\
+
+Xue et al. \cite{xue2025lightweight} &
+Wheat production &
+Satellite SIF &
+Temperature; soil water; VPD &
+Process-guided $q_L$ model &
+Australia; region/state &
+2019-2022 &
+$R^2=0.86$-$0.91$\\
+
+Kira et al. \cite{kira2024scalable} &
+Corn/wheat yield &
+OCO-2 SIF; MODIS NDVI, NIR, fPAR &
+PAR; NPP:GPP; area; harvest index &
+MLR; ANN; RF &
+U.S. counties; Indian districts &
+2015-2020 &
+$R^2=0.53$-$0.69$ \\
+
+He et al. \cite{he2020ground} &
+Corn/soy productivity &
+PhotoSpec and TROPOMI SIF &
+GPP; planted area; C3/C4 fractions &
+Cross-scale regression &
+U.S. Corn Belt; tower/county &
+- &
+$R^2=0.72$-$0.89$ \\
+
+Wang et al. \cite{wang2025practical} &
+Corn/soy yield &
+Satellite SIF &
+Temperature; VPD; soil moisture; phenology &
+Process-guided $q_L$ model &
+U.S. Midwest; county &
+2018-2023 &
+$R^2=0.76$-$0.81$ \\
+
+Qiu et al. \cite{qiu2022monitoring} &
+Crop productivity/yield &
+GOSIF; GOME-2 SIF; NDVI, EVI, NIRv &
+Tower GPP; yield statistics &
+Anomaly regression &
+U.S. Midwest; regional &
+2008-2018 &
+$R^2=0.91$ for GOSIF \\
+
+Joshi et al. \cite{joshi2023winter} &
+Winter-wheat yield &
+SIF and three VIs &
+Climate and soil &
+XGBoost; RF &
+CONUS; county &
+14 years &
+$R^2=0.69$ \\
+
+Song et al. \cite{song2018satellite} &
+Wheat heat response &
+SIF, SIF yield, NDVI, EVI &
+Temperature; absorbed light; yield &
+Anomaly comparison &
+Indian Indo-Gangetic Plains; regional &
+2010 &
+Yield loss: observed $6\%$; SIF $13.9\%$ \\
+
+\hline
+\multicolumn{8}{@{}l}{\textbf{Optical and spectral-index yield estimation}}
+\vspace{2mm}\\
+
+Vannoppen et al. \cite{vannoppen2021estimating} &
+Winter-wheat yield &
+Maximum NDVI &
+Monthly precipitation &
+Random forest &
+Belgium; field &
+2016-2018 &
+$R^2=0.66$  \\
+
+Hunt et al. \cite{hunt2019high} &
+Wheat yield &
+Sentinel-2 &
+Weather; terrain; soil moisture &
+Random forest &
+United Kingdom; 10 m/field &
+- &
+RMSE $= ~0.63$ \\
+
+Vallentin et al. \cite{vallentin2022suitability} &
+Cereal/canola yield &
+Six sensors; 15 spectral indices &
+Timing; soil; terrain; field properties &
+Correlation analysis &
+Northeast Germany; field &
+13 years &
+$r\approx0$-$0.94$; median $0.19$ \\
+
+Chandel et al. \cite{chandel2019yield} &
+Wheat yield &
+NDVI, NDWI, SAVI, NDNI &
+Nitrogen treatment; growth stage &
+Stage-specific regression &
+Central India; experiment &
+2014-2017 &
+$R^2=0.95$-$0.96$ \\
+
+\hline
+\multicolumn{8}{@{}l}{\textbf{Multi-source and temporal yield models}}
+\vspace{2mm}\\
+
+Goihl et al. \cite{goihl2024crop} &
+Six crop yields &
+- &
+Weather; historical yield &
+Random forest &
+Saxony; agricultural regions &
+2015-2022 &
+Wheat RRMSE $=2.88$-$20.56\%$ \\
+
+Marszalek et al. \cite{marszalek2022prediction} &
+Winter-wheat yield &
+Sentinel-2 bands; NDRE, REIP, NDWI &
+Rainfall; evapotranspiration &
+Linear regression; RF &
+Southern Germany; field &
+2016-2018 &
+$R^2=0.84$; RMSE $=0.56$ \\
+
+Brandt et al. \cite{brandt2024ensemble} &
+Three crop yields &
+Multi-source EO variables &
+Weather; soil; parcels &
+Six-model ensembles &
+Two German states; parcel/district &
+2019-2022 &
+$R^2=0.66$-$0.89$; nRMSE $=7.2$-$16.9\%$ \\
+
+Zhao et al. \cite{zhao2020predicting} &
+Wheat yield &
+Sentinel-2 OSAVI, NDVI, CI, NDRE &
+Crop-model water stress &
+Combined regression &
+Northeast Australia; field &
+2016-2017 &
+Test $R^2=0.93$; RMSE $=0.64$ \\
+
+Srivastava et al. \cite{srivastava2022winter} &
+Winter-wheat yield &
+- &
+Weekly weather; soil; phenology &
+1D CNN &
+Germany; county &
+1999-2019 &
+RMSE reduction $=7$-$14\%$ \\
+
+
+
+\hline
+\multicolumn{8}{@{}l}{\textbf{SIF-based GPP estimation and evaluation}}
+\vspace{2mm}\\
+
+Hu et al. \cite{hu2020detecting} &
+Regional GPP &
+GOME-2 SIF; MODIS NDVI, fPAR, LST &
+Soil-moisture index &
+Moving-window regression &
+Flux-tower regions &
+- &
+- \\
+
+Ma et al. \cite{ma2025gpp} &
+Global GPP &
+Three SIF-derived GPP sources &
+Eddy-covariance GPP &
+Transfer learning &
+Global; tower network &
+- &
+Spatial $R^2$: $+0.036$-$+0.132$ \\
+
+Shekhar et al. \cite{shekhar2022well} &
+GPP evaluation &
+CSIF, GOSIF, LUE-SIF, HSIF; VIs &
+FLUXNET/ICOS GPP; drought &
+Statistical comparison &
+Global/Europe; tower &
+2007-2018 &
+SIF generally exceeded NDVI/EVI \\
+
+\end{longtable}
+\endgroup

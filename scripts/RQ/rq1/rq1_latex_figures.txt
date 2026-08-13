@@ -6,7 +6,7 @@
     \begin{subfigure}[t]{0.32\textwidth}
         \centering
         \includegraphics[width=\linewidth]{%
-            \detokenize{img/1_obv_vs_pred_4km-spatial_9tiles.pdf}}
+            \detokenize{img/3_obv_pred_4km_spatial.pdf}}
         \caption{Nine-tile evaluation}
         \label{fig:rq1_obv_pred_9tiles}
     \end{subfigure}
