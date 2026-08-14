@@ -147,3 +147,62 @@ The opening should cite original studies for its central scientific claims. The 
 - Do not describe the generated 20 m values as observed or independently validated 20 m SIF.
 - Do not imply that the model establishes causal effects of individual predictors.
 - Do not present the current yield experiment as an operational yield model; its role is to test the relative value of crop-pure enhanced SIF.
+
+
+## Introduction Motivation
+
+### Paragraph 1 - Limitations encountered when using raw OCO-2 SIF
+
+- Winter-wheat yield monitoring requires observations that represent crop activity over complete agricultural regions and throughout the important parts of the growing season.
+- An earlier experiment used raw OCO-2 SIF footprints for winter-wheat yield prediction and used annual crop-type rasters to calculate the percentage of winter wheat inside each footprint.
+- Several minimum winter-wheat coverage thresholds were tested so that footprints with different levels of crop purity could be retained.
+- The accepted observations were converted into seasonal mean SIF values for Bavarian NUTS-3 regions.
+- This procedure produced an extremely sparse regional dataset, with approximately 45--80% of the required values missing depending on the NUTS-3 region, year, and seasonal period.
+- Requiring a high winter-wheat percentage improved crop purity but left too few OCO-2 observations, whereas accepting more footprints increased coverage but introduced signals from other crops and land-cover types.
+- Spatial and temporal averaging could not solve the problem because it further reduced the number of distinct observations and removed potentially useful within-region variation.
+- The experience showed that raw OCO-2 sampling alone is insufficient for reliable, spatially complete crop-specific yield analysis at the Bavarian NUTS-3 scale.
+
+### Paragraph 2 - Need for high-resolution SIF enhancement
+
+- Existing satellite and enhanced SIF products involve a trade-off between spatial detail, temporal coverage, and measurement noise: OCO-2 is comparatively fine but spatially sparse, while spatially complete products are generally much coarser.
+- Most established enhanced SIF datasets remain at approximately 500 m to 1 km resolution or coarser.
+- Such resolutions can combine several fields, crops, and non-agricultural surfaces within one pixel, particularly in Bavaria's fragmented agricultural landscape.
+- A finer SIF representation is therefore needed to isolate winter-wheat areas and reduce contamination from neighbouring land-cover types.
+- Sentinel-2 supplies spatially complete optical bands and vegetation indices at 10--20 m resolution and can describe much of the field-scale pattern missing between OCO-2 tracks.
+- Combining these observations with radiation, climatological, seasonal, and crop-composition variables offers a way to estimate SIF where direct OCO-2 observations are unavailable.
+- The resulting values must be treated as model-derived high-resolution estimates because direct SIF measurements are not available at every 20 m pixel for validation.
+- The central motivation is to create a more spatially and temporally complete SIF representation and determine whether its crop-pure signal is more useful for winter-wheat yield prediction than raw mixed-footprint OCO-2 SIF.
+
+## Introduction Objective
+
+- The first objective is to develop and evaluate a machine-learning workflow that enhances sparse OCO-2 SIF using high-resolution spectral, vegetation, radiation, climatological, seasonal, and crop-composition predictors.
+- The study compares tabular tree-based models, an area-to-point neural network, and spatial convolutional models to determine how model architecture and input representation affect prediction and map structure.
+- It also examines whether aggregating noisy OCO-2 observations provides more stable supervision than modelling individual footprints directly.
+- A longer-term operational objective is to enable the workflow to generate spatially and temporally complete high-resolution SIF data across Germany when the required inputs and computing resources are available.
+- Producing that complete national time series is outside the computational scope of this thesis; instead, the thesis delivers the trained-model approach, reproducible data-preparation code, and evidence needed for later large-scale application.
+- The proposed workflow is benchmarked conceptually and empirically against relevant OCO-2 reconstruction and SIF downscaling methods reported in the literature.
+- The enhanced SIF is integrated into a winter-wheat yield-prediction framework by extracting crop-pure monthly SIF and aggregating it to Bavarian NUTS-3 regions.
+- The final objective is to quantify whether high-resolution crop-pure SIF adds predictive value over raw OCO-2 observations with mixed and incomplete vegetation coverage.
+
+## Introduction Thesis Scope
+
+- The SIF-enhancement study is geographically limited to selected Sentinel-2 MGRS tiles across Germany rather than complete wall-to-wall processing of every German pixel.
+- This restriction is necessary because multi-year Sentinel-2 processing is highly data- and computation-intensive; the required products for 11 MGRS tiles can approach approximately 500 GB before further model-ready processing.
+- The common SIF-enhancement data period is 2019--2024 because the Sentinel-2 L3A WASP monthly archive used in the thesis begins in 2019 and the annual crop-type rasters extend only through 2024.
+- Although several secondary radiation, vegetation, and climatological datasets cover a longer period, they are restricted to this common temporal overlap so that all required predictor channels remain available.
+- The main SIF experiments use the available growing-season months from February to July, while the winter-wheat yield application uses monthly predictors from March to July.
+- The yield-prediction scope is narrower geographically and focuses on Bavarian NUTS-3 regions covered by the selected MGRS tiles, using 2019--2022 for model development and 2024 as the temporal test year.
+- Years outside the common 2019--2024 data window are not included in the completed experiments because all required primary predictor datasets were not available for them within the thesis workflow.
+- Spatial outputs are produced on a 20 m grid, but evaluation is performed after aggregation to OCO-2 footprint or 4 km support, so the study does not claim direct independent validation of individual 20 m SIF pixels.
+
+## Introduction Purpose and Goal
+
+- This subsection should explain why the work matters and what contribution it is intended to make, rather than repeat the individual technical objectives.
+- The main purpose is to bridge the scale gap between sparse OCO-2 SIF observations and the field-scale spatial information required for crop-specific agricultural analysis.
+- The study aims to determine whether high-resolution Sentinel-2 and ancillary predictors can distribute footprint- or grid-supported SIF into spatial patterns that are useful at the scale of fragmented German farmland.
+- A second purpose is to establish whether isolating SIF over winter-wheat pixels reduces the mixed-cover problem encountered when raw OCO-2 footprints are aggregated for regional yield prediction.
+- The research also seeks to clarify how predictor information, spatial context, OCO-2 aggregation, and target preparation influence enhancement performance, rather than attributing all differences to model architecture alone.
+- Its practical contribution is a reproducible model and data-preparation workflow that can support later generation of a longer and more geographically complete German SIF record without claiming that such an operational product has already been produced.
+- Beyond crop-yield modelling, a spatially detailed and temporally complete SIF product could support the monitoring of GPP, vegetation productivity, phenological development, and physiological responses to drought or heat stress.
+- The agricultural goal is to provide more complete crop-specific photosynthetic information that could eventually strengthen winter-wheat monitoring and early-warning yield applications when combined with weather, soil, and management variables.
+- The intended outcome is therefore both methodological and applied: an evaluated high-resolution SIF-enhancement framework, a transparent account of its validation limits, and evidence on whether crop-pure enhanced SIF is a useful direction for future yield research.
