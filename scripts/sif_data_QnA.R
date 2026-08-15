@@ -1874,7 +1874,7 @@ sort(colSums(is.na(df)))
 
 #-------------------------------------------------------------------------------
 
-df <- readRDS('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.rds')
+df <- read_csv('data/tifs/DE_LS_2021/')
 
 
 
