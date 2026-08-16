@@ -1,29 +1,219 @@
-    \chapter{Theoretical Background\label{cha:chapter2}}
+\chapter{Theoretical Background\label{cha:chapter2}}
 
-This chapter provides the reader the background knowledge to understand technical concepts applied in the thesis.
+\section{Background\label{sec:background}}
 
-\section{Background \label{sec:background}}
-\subsection{Definitions}
+\subsection{Satellite SIF Retrieval and Photosynthetic Interpretation}
 
-\lipsum[5]
+Solar-induced chlorophyll fluorescence (SIF) is the weak radiation emitted by chlorophyll, mainly between approximately 650 and 800~nm, after vegetation absorbs photosynthetically active radiation (PAR). This emission occurs alongside photochemistry and non-photochemical energy dissipation and therefore contains information about absorbed light and the functioning of the photosynthetic system \cite{doughty2022global,porcar2014linking}. Satellite instruments retrieve SIF from the partial filling of narrow solar Fraunhofer absorption lines in the measured radiance spectrum rather than measuring photosynthesis directly \cite{sun2018overview,doughty2022global}. For OCO-2 and OCO-3, fitting windows near 757 and 771~nm are used, and the fitted fractional fluorescence contribution is converted to absolute SIF in \(\mathrm{W\,m^{-2}\,sr^{-1}\,\mu\mathrm{m}^{-1}}\). Retrieval quality depends on factors including the spectral fit, continuum radiance, gas-band ratios, solar zenith angle, cloud contamination, and the land fraction of the footprint; quality flag 0 denotes the best observations and flag 1 denotes good observations \cite{doughty2022global}. Actual fluorescence emission cannot be negative, but a weak signal combined with single-sounding retrieval noise can produce negative estimates, and the absolute retrieval uncertainty generally increases with radiance \cite{kohler2018global}. Negative values were therefore evaluated relative to their uncertainty rather than removed automatically. For a retrieved value \(S_i\) with uncertainty \(\sigma_i\), the classification was
 
-\subsection{Important subheading 1}
-\lipsum[1]
+\begin{equation}
+q_i=
+\begin{cases}
+\text{accepted}, & S_i+2\sigma_i\geq 0,\\
+\text{questionable}, & S_i+2\sigma_i<0\ \text{and}\ S_i+3\sigma_i\geq0,\\
+\text{rejected}, & S_i+3\sigma_i<0.
+\end{cases}
+\label{eq:sif_negative_quality}
+\end{equation}
 
-\subsection{Important subheading 2}
-\lipsum[1]
+The principal target combined the daily-corrected retrievals in the two oxygen absorption bands as
 
-\subsection{Important subheading n}
-\lipsum[1]
+\begin{equation}
+S_i=\frac{S_{757,i}+1.5S_{771,i}}{2},
+\label{eq:background_combined_sif}
+\end{equation}
 
+with propagated uncertainty
+
+\begin{equation}
+\sigma_i=\frac{1}{2}\sqrt{\sigma_{757,i}^{2}+\left(1.5\sigma_{771,i}\right)^{2}}.
+\label{eq:background_combined_sif_uncertainty}
+\end{equation}
+
+Only uncertainty-based accepted observations within \(-0.5\leq S_i<2.0\) were retained in the principal datasets, while source quality flags 0 and 1 and the nadir or glint measurement mode remained available for separate analysis \cite{oco2_sif_v11r,oco2_sif_v112r}. Because an instantaneous SIF retrieval also depends on illumination at the overpass time, OCO-2 supplies a daily correction factor. If \(\theta_s(t)\) is the solar zenith angle, \(t_o\) is the overpass time, and \(T=24~\mathrm{h}\), its clear-sky basis can be written as
+
+\begin{equation}
+\overline{\mu}_{d}=\frac{1}{T}\int_{0}^{T}\max\!\left(0,\cos\theta_s(t)\right)\,\mathrm{d}t,
+\qquad
+c_{d}=\frac{\overline{\mu}_{d}}{\cos\theta_s(t_o)},
+\qquad
+S_{\mathrm{daily}}=c_{d}S_{\mathrm{inst}}.
+\label{eq:daily_sif_correction}
+\end{equation}
+
+The correction standardizes the overpass-time observation to daily-mean clear-sky illumination, but it does not remove all atmospheric, directional, or physiological effects \cite{doughty2022global,chen2020upscaling}.
+
+The connection between SIF and vegetation productivity can be explained through absorbed radiation. The light-use-efficiency formulation expresses gross primary production (GPP) as \cite{monteith1972solar,monteith1977climate,liu2020estimating}
+
+\begin{equation}
+\mathrm{GPP}=\mathrm{LUE}\times\mathrm{FAPAR}\times\mathrm{PAR}
+=\mathrm{LUE}\times\mathrm{APAR},
+\qquad
+\mathrm{APAR}=\mathrm{FAPAR}\times\mathrm{PAR}.
+\label{eq:gpp_lue_background}
+\end{equation}
+
+PAR is the incoming radiation in the photosynthetically active range of approximately 400--700~nm, FAPAR is the fraction of PAR absorbed by vegetation, and APAR is the resulting absorbed radiation. Light-use efficiency (LUE) describes how efficiently APAR is converted into fixed carbon. At canopy level, measured SIF can be represented conceptually as \cite{berry2013new,porcar2014linking,liu2020estimating}
+
+\begin{equation}
+\mathrm{SIF}=f_{\mathrm{esc}}\times\mathrm{APAR}\times\Phi_F,
+\label{eq:sif_apar_background}
+\end{equation}
+
+where \(\Phi_F\) is fluorescence yield at the photosystem level and \(f_{\mathrm{esc}}\) is the fraction of emitted fluorescence that escapes the canopy towards the sensor. SIF and GPP are often correlated because both depend on APAR, but their relationship is not fixed: GPP additionally depends on LUE, whereas observed SIF is influenced by fluorescence yield, stress-related energy partitioning, canopy structure, and escape probability \cite{magney2020covariation,dechant2020canopy}. Observation geometry is another important influence. Under cloud-free conditions, \(\cos(\mathrm{SZA})\) provides a proxy for PAR, but it is an illumination term rather than SIF itself \cite{chen2020upscaling}. In this thesis, relative azimuth and phase angle were calculated from solar azimuth \(\phi_s\), viewing azimuth \(\phi_v\), SZA \(\theta_s\), and viewing zenith angle \(\theta_v\) as
+
+\begin{align}
+\Delta\phi &= \left((\phi_s-\phi_v+180^{\circ})\bmod 360^{\circ}\right)-180^{\circ},
+\label{eq:relative_azimuth_background}\\
+\cos\alpha &= \cos\theta_s\cos\theta_v
++\sin\theta_s\sin\theta_v\cos\Delta\phi,
+\qquad
+\alpha=\arccos\!\left[\max\!\left(-1,\min\!\left(1,\cos\alpha\right)\right)\right],
+\label{eq:phase_angle_background}\\
+\alpha_{\mathrm{signed}} &=
+\begin{cases}
+-\alpha, & \Delta\phi<0,\\
+\alpha, & \Delta\phi\geq0.
+\end{cases}
+\label{eq:signed_phase_angle_background}
+\end{align}
+
+Near-zero phase angles align the illumination and viewing directions and can cause a hotspot-like increase in retrieved SIF, whereas this effect is much smaller above approximately \(20^{\circ}\) \cite{kohler2018global,joiner2020systematic,doughty2022global}. The comparison conducted across the nine MGRS tiles used in the thesis contained no such low-phase-angle observations and showed no systematic phase-angle-related increase in the SIF values.
+
+\subsection{Spectral Predictors and Spatial Reference Framework}
+
+Surface reflectance is the fraction of incoming radiation reflected by the land surface within a defined wavelength interval. The final spectral-index predictors used Sentinel-2 B2 blue (approximately 490~nm, 10~m), B4 red (665~nm, 10~m), B5 red edge (705~nm, 20~m), B8 broad near-infrared (NIR; 833~nm, 10~m), B8A narrow NIR (865~nm, 20~m), and B11 short-wave infrared (SWIR; 1610~nm, 20~m) bands \cite{hagolle_wasp_2018}. B4 lies in a strong chlorophyll-absorption region, B5 measures the transition from red absorption to high NIR reflectance, B8 and B8A respond strongly to leaf and canopy scattering, B11 is sensitive to canopy water absorption, and B2 supplies the blue correction used by EVI. From bottom-of-atmosphere reflectance in these bands, the five spectral indices were calculated as
+
+\begin{align}
+\mathrm{NDVI} &= \frac{B8-B4}{B8+B4},
+&
+\mathrm{NDMI} &= \frac{B8-B11}{B8+B11},
+\label{eq:background_ndvi_ndmi}\\
+\mathrm{NDRE} &= \frac{B8A-B5}{B8A+B5},
+&
+\mathrm{NIRv} &= B8\times\mathrm{NDVI},
+\label{eq:background_ndre_nirv}\\
+\mathrm{EVI} &= 2.5\frac{B8-B4}{B8+6B4-7.5B2+1}.
+\label{eq:background_evi}
+\end{align}
+
+NDVI represents the amount and condition of photosynthetically active green vegetation, although it becomes less sensitive as a canopy becomes dense \cite{tucker1979red}. NDRE uses a red-edge band and narrow NIR band to provide information about canopy chlorophyll or nitrogen status in developed crop canopies \cite{barnes2000coincident}. NIRv estimates the NIR reflectance attributable to vegetation rather than soil and other background components and is consequently related to intercepted radiation and GPP \cite{badgley2017canopy}. NDMI uses the contrast between NIR and SWIR reflectance to represent vegetation moisture; it follows the water-sensitive concept of Gao's NDWI, although Sentinel-2 B11 near 1.61~\(\mu\mathrm{m}\) replaces the original 1.24~\(\mu\mathrm{m}\) band \cite{gao1996ndwi}. EVI represents vegetation greenness while its blue-band and coefficient terms reduce atmospheric and canopy-background effects and retain more sensitivity under high-biomass conditions \cite{huete2002overview}. For the common predictor grid, the 10~m bands were reduced by area averaging, while B5, B8A, and B11 remained at their native 20~m spacing. The full WASP product also supplied B3, B6, B7, and B12, but these bands were not used directly in the final five spectral indices.
+
+A coordinate reference system (CRS) defines how numerical coordinates correspond to positions on Earth. A geographic CRS records angular latitude and longitude, whereas a projected CRS represents the surface in planar units and is therefore more appropriate for calculating distances, areas, and fixed pixel sizes. OCO-2 footprint corners were initially represented in WGS~84 (EPSG:4326), while area and centroid operations were performed in the European equal-area projection ETRS89-LAEA (EPSG:3035). Sentinel-2 rasters were processed in the UTM CRS assigned to each tile so that their pixels aligned on a common 20~m grid. The Military Grid Reference System (MGRS) is not itself an image CRS; it is a grid-reference system based mainly on UTM zones and 100~km grid squares, and its identifiers provide the spatial units used to distribute and organize Sentinel-2 products. Geographic resolutions such as \(0.5^{\circ}\) and \(0.05^{\circ}\) are angular and therefore do not have a constant ground width. For latitude \(\varphi\), small angular increments \(\Delta\theta\) in latitude and \(\Delta\lambda\) in longitude have approximate ground dimensions
+
+\begin{equation}
+d_{\mathrm{NS}}\approx111.2\,\Delta\theta\ \mathrm{km},
+\qquad
+d_{\mathrm{EW}}\approx111.2\cos(\varphi)\,\Delta\lambda\ \mathrm{km}.
+\label{eq:degree_ground_distance}
+\end{equation}
+
+At approximately \(50^{\circ}\)~N in Germany, a \(0.05^{\circ}\) cell is therefore about 5.6~km north--south by 3.6~km east--west, while a \(0.5^{\circ}\) cell is about 55.6~km by 35.7~km. Spatial resolution must nevertheless be distinguished from spatial support: resampling a coarse variable to 20~m pixels changes its grid but does not create independent information at 20~m. In this thesis, the 20~m output grid obtains its spatial pattern from Sentinel-2, whereas the observed OCO-2 targets constrain footprint or 4~km aggregate means. The output should consequently be interpreted as spatially downscaled SIF estimates rather than directly observed and independently validated 20~m SIF.
 
 
 \section{Existing Methods}
-At least 8-10 different cited papers for techniques you deploy for problem solution with 6-8 published after 2019.
 
-\lipsum[10]
+Machine-learning models used for SIF enhancement can be separated broadly into image-based neural networks and models that operate on tabular predictor values. A convolutional neural network (CNN) applies shared filters to neighbouring raster pixels, allowing it to learn edges, textures, and larger spatial patterns instead of treating every pixel independently. U-Net is an encoder--decoder CNN in which the encoder progressively summarizes increasingly broad spatial context and the decoder reconstructs an output at the original grid resolution; skip connections transfer fine spatial information directly from corresponding encoder layers to the decoder \cite{ronneberger2015u}. A multilayer perceptron (MLP) instead consists of fully connected layers that transform a fixed vector of input variables through learned weights and nonlinear activation functions. It can represent nonlinear relationships between predictors and SIF, but it does not use the spatial arrangement of neighbouring pixels unless that information is explicitly included among its inputs. Random Forest constructs many decision trees from bootstrapped training samples and random subsets of predictors, then averages their regression outputs to reduce the instability of individual trees \cite{breiman2001random}. XGBoost builds decision trees sequentially, with each new tree focusing on errors left by the preceding trees, while regularization and controlled tree growth help limit overfitting \cite{chen2016xgboost}. Random Forest and XGBoost are therefore well suited to heterogeneous tabular variables and nonlinear interactions, whereas CNNs are particularly useful when the predictor rasters' spatial arrangement is itself expected to contain information.
+
+For SIF enhancement, CNN inputs are commonly organized as aligned raster stacks containing coarse SIF together with finer-resolution reflectance, vegetation indices, temperature, and other environmental variables. Convolutional filters learn how the spatial patterns in these auxiliary rasters are related to SIF, while the decoder or final convolutional layers produce a spatially continuous, finer-resolution SIF field. Training may use an artificial scale transformation, in which the original SIF is first coarsened and then treated as the reconstruction target, or transfer learning that applies a relationship learned at coarse support to fine-resolution predictors \cite{gensheimer2022convolutional,du2025cnsif}. This arrangement allows CNNs to use neighbouring fields, land-cover boundaries, and broader landscape context, although fine output pixels are still indirectly supervised when equally fine observed SIF is unavailable. Tabular approaches instead represent each observation as a row containing SIF and corresponding predictor summaries, such as reflectance bands, spectral indices, solar illumination, radiation, temperature, land cover, or geographic information. Random Forest or XGBoost learns a scalar relationship from these rows and is then applied to spatially and temporally complete predictor grids to reconstruct SIF where observations are missing or to estimate it at a finer grid spacing \cite{ma2020generation,chen2022long,he2025tracking,chen2025improved}. These models are generally easier to train on irregular satellite footprints and require less memory than CNNs, but their pixels are predicted independently and their apparent spatial continuity mainly comes from the input rasters. Consequently, CNN and tabular methods differ not only in architecture but also in how they represent spatial context, while neither approach automatically guarantees that fine predictions preserve the original coarse SIF observation unless an additional aggregation constraint or correction is imposed.
 
 \section{Evaluation Metrics}
-\subsection{Subsection 1}
-\subsection{Subsection 2}
-\subsection{Subsection 3}
+
+Let \(y_i\) denote the observed value for sample \(i\), let \(\widehat{y}_i\) denote its model prediction, and let \(n\) be the number of evaluated samples. The signed residual, the means of the observations and predictions, and the sample standard deviation of the observations are defined as
+
+\begin{equation}
+\begin{aligned}
+e_i &= \widehat{y}_i-y_i,
+&
+\overline{y} &= \frac{1}{n}\sum_{i=1}^{n}y_i,
+&
+\overline{\widehat{y}} &= \frac{1}{n}\sum_{i=1}^{n}\widehat{y}_i,\\
+s_y &= \sqrt{\frac{1}{n-1}\sum_{i=1}^{n}\left(y_i-\overline{y}\right)^2}.
+\end{aligned}
+\label{eq:metric_common_notation}
+\end{equation}
+
+These quantities provide the common notation for the evaluation metrics used in this thesis.
+
+\subsection{Correlation and Regression Agreement}
+
+The Pearson correlation coefficient \(r\) is the covariance between the observed and predicted values divided by the product of their standard deviations \cite{benesty2009pearson}. Using sums of centred observations and predictions, it is calculated as
+
+\begin{equation}
+r=
+\frac{\sum_{i=1}^{n}\left(y_i-\overline{y}\right)
+\left(\widehat{y}_i-\overline{\widehat{y}}\right)}
+{\sqrt{\sum_{i=1}^{n}\left(y_i-\overline{y}\right)^2}
+\sqrt{\sum_{i=1}^{n}\left(\widehat{y}_i-\overline{\widehat{y}}\right)^2}}.
+\label{eq:pearson_correlation}
+\end{equation}
+
+The coefficient of determination \(R^2\) compares the squared differences between observations and predictions with the squared deviations of the observations from their mean:
+
+\begin{equation}
+R^2=1-
+\frac{\sum_{i=1}^{n}\left(y_i-\widehat{y}_i\right)^2}
+{\sum_{i=1}^{n}\left(y_i-\overline{y}\right)^2}.
+\label{eq:coefficient_determination}
+\end{equation}
+
+Regression slope and intercept describe the least-squares line obtained by regressing the predicted values on the observations,
+
+\begin{equation}
+\widehat{y}^{\,\mathrm{line}}_i=b_0+b_1y_i,
+\label{eq:prediction_regression_line}
+\end{equation}
+
+where the slope \(b_1\) and intercept \(b_0\) are
+
+\begin{align}
+b_1 &=
+\frac{\sum_{i=1}^{n}\left(y_i-\overline{y}\right)
+\left(\widehat{y}_i-\overline{\widehat{y}}\right)}
+{\sum_{i=1}^{n}\left(y_i-\overline{y}\right)^2},
+\label{eq:regression_slope}\\
+b_0 &= \overline{\widehat{y}}-b_1\overline{y}.
+\label{eq:regression_intercept}
+\end{align}
+
+\subsection{Error-Based Metrics}
+
+Root mean squared error (RMSE) is the square root of the mean squared residual, while mean absolute error (MAE) is the mean absolute residual. Mean bias error is the arithmetic mean of the signed residuals. Normalized root mean squared error (NRMSE) divides RMSE by the sample standard deviation of the observed values, thereby expressing RMSE relative to the variation of the evaluated target. These metrics are defined as
+
+\begin{align}
+\mathrm{RMSE} &=
+\sqrt{\frac{1}{n}\sum_{i=1}^{n}
+\left(\widehat{y}_i-y_i\right)^2},
+\label{eq:rmse_definition}\\
+\mathrm{MAE} &=
+\frac{1}{n}\sum_{i=1}^{n}
+\left|\widehat{y}_i-y_i\right|,
+\label{eq:mae_definition}\\
+\mathrm{Bias} &=
+\frac{1}{n}\sum_{i=1}^{n}
+\left(\widehat{y}_i-y_i\right),
+\label{eq:bias_definition}\\
+\mathrm{NRMSE} &= \frac{\mathrm{RMSE}}{s_y}.
+\label{eq:nrmse_definition}
+\end{align}
+
+\subsection{Huber Loss}
+
+Huber loss is a piecewise regression loss that applies a quadratic expression when the absolute residual is within a transition value \(\delta\) and a linear expression beyond that value. For one sample, the loss is
+
+\begin{equation}
+\ell_{\delta}(e_i)=
+\begin{cases}
+\dfrac{1}{2}e_i^2, & \left|e_i\right|\leq\delta,\\[4pt]
+\delta\left(\left|e_i\right|-\dfrac{1}{2}\delta\right),
+& \left|e_i\right|>\delta,
+\end{cases}
+\label{eq:huber_sample_loss}
+\end{equation}
+
+and the mean Huber loss over \(n\) samples is
+
+\begin{equation}
+L_{\delta}=\frac{1}{n}\sum_{i=1}^{n}\ell_{\delta}(e_i).
+\label{eq:mean_huber_loss}
+\end{equation}
