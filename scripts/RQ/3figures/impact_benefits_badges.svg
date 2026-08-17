@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1840" height="260" viewBox="0 0 1840 260"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Impact and benefits badges</title>
+  <desc id="desc">Three editable badges summarize spatial SIF enhancement, cross-tile validation, and crop-pure yield inputs.</desc>
+
+  <defs>
+    <style><![CDATA[
+      text { font-family: Inter, Arial, Helvetica, sans-serif; }
+      .badge-title { fill: #17324d; font-size: 31px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+      .icon { fill: none; stroke: #ffffff; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+    ]]></style>
+    <linearGradient id="tealGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#147b78"/><stop offset="1" stop-color="#36aaa3"/>
+    </linearGradient>
+    <linearGradient id="purpleGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#65459c"/><stop offset="1" stop-color="#9b7bd0"/>
+    </linearGradient>
+    <linearGradient id="greenGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8435"/><stop offset="1" stop-color="#86b95f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Badge 1: spatial enhancement -->
+  <g id="badge-spatial-sif-enhancement" transform="translate(20 18)">
+    <rect x="83" y="47" width="497" height="160" rx="79" fill="#ffffff" stroke="#3c9994" stroke-width="2.5"/>
+    <circle cx="103" cy="127" r="96" fill="#ffffff" stroke="#3c9994" stroke-width="2.5"/>
+    <circle cx="103" cy="127" r="81" fill="url(#tealGradient)"/>
+    <circle cx="103" cy="127" r="71" fill="none" stroke="#ffffff" stroke-width="2" opacity=".58"/>
+
+    <!-- dense raster with an orbital swath -->
+    <g id="icon-spatial-raster" transform="translate(59 83)">
+      <rect x="7" y="7" width="74" height="74" rx="6" class="icon"/>
+      <path d="M25 7v74M44 7v74M63 7v74M7 25h74M7 44h74M7 63h74" class="icon" stroke-width="2.7" opacity=".8"/>
+      <path d="M16 71 69 18" class="icon" stroke-width="10" opacity=".93"/>
+      <path d="M13 20c12-14 28-20 45-15" class="icon" stroke-width="3"/>
+      <circle cx="64" cy="7" r="5" fill="#ffffff"/>
+    </g>
+    <text x="346" y="128" class="badge-title">Spatial SIF Enhancement</text>
+  </g>
+
+  <!-- Badge 2: external transfer and validation -->
+  <g id="badge-cross-tile-validation" transform="translate(620 18)">
+    <rect x="83" y="47" width="497" height="160" rx="79" fill="#ffffff" stroke="#9b7bd0" stroke-width="2.5"/>
+    <circle cx="103" cy="127" r="96" fill="#ffffff" stroke="#9b7bd0" stroke-width="2.5"/>
+    <circle cx="103" cy="127" r="81" fill="url(#purpleGradient)"/>
+    <circle cx="103" cy="127" r="71" fill="none" stroke="#ffffff" stroke-width="2" opacity=".58"/>
+
+    <!-- two new spatial tiles plus validation check -->
+    <g id="icon-cross-tile" transform="translate(55 80)">
+      <rect x="9" y="13" width="52" height="52" rx="5" class="icon"/>
+      <rect x="36" y="38" width="52" height="52" rx="5" class="icon"/>
+      <ellipse cx="36" cy="40" rx="9" ry="23" transform="rotate(-38 36 40)" fill="none" stroke="#ffffff" stroke-width="4"/>
+      <path d="M47 68 59 80 83 51" class="icon"/>
+    </g>
+    <text x="350" y="128" class="badge-title">Cross-Tile Validation</text>
+  </g>
+
+  <!-- Badge 3: crop-pure downstream use -->
+  <g id="badge-crop-pure-yield-inputs" transform="translate(1220 18)">
+    <rect x="83" y="47" width="497" height="160" rx="79" fill="#ffffff" stroke="#76a95d" stroke-width="2.5"/>
+    <circle cx="103" cy="127" r="96" fill="#ffffff" stroke="#76a95d" stroke-width="2.5"/>
+    <circle cx="103" cy="127" r="81" fill="url(#greenGradient)"/>
+    <circle cx="103" cy="127" r="71" fill="none" stroke="#ffffff" stroke-width="2" opacity=".58"/>
+
+    <!-- wheat crop joined to a small yield signal chart -->
+    <g id="icon-crop-yield" transform="translate(53 74)">
+      <path d="M45 91V20M45 39 30 27M45 51 61 36M45 63 28 50M45 75 62 60" class="icon"/>
+      <path d="M30 27c-8-8-10-15-9-21 7 1 14 6 17 15M61 36c8-8 11-15 10-21-8 1-14 6-18 15M28 50c-8-8-11-14-10-20 8 0 14 5 18 14M62 60c8-8 11-14 10-20-8 0-14 5-18 14" class="icon" stroke-width="3.5"/>
+      <path d="M61 90h32M65 85V72M77 85V62M89 85V49" class="icon" stroke-width="4"/>
+      <path d="M64 64 77 54 89 38" class="icon" stroke-width="3.5"/>
+    </g>
+    <text x="352" y="128" class="badge-title">Crop-Pure Yield Inputs</text>
+  </g>
+</svg>

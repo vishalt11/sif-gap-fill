@@ -20,6 +20,7 @@ CHIP_INDEX = 0
 
 OUTPUT_DIR = DATA_DIR / "visualizations"
 PDF_OUTPUT_DIR = Path("eda_images/pdf")
+SVG_OUTPUT_DIR = Path("eda_images/svg")
 SHOW_FIGURES = True
 
 
@@ -40,7 +41,12 @@ FRACTION_CHANNELS = {
     "non_crop_fraction",
 }
 
-SIGNED_INDEX_CHANNELS = {"ndmi", "ndvi", "evi", "ndre"}
+SPECTRAL_INDEX_STYLES = {
+    "ndmi": ("BrBG", -1.0, 1.0),
+    "ndvi": ("RdYlGn", -1.0, 1.0),
+    "evi": ("plasma", -1.0, 1.0),
+    "ndre": ("PuOr", -1.0, 1.0),
+}
 MONTH_CHANNELS = {"month_sin", "month_cos"}
 
 
@@ -86,8 +92,13 @@ def channel_style(name: str, array: np.ndarray) -> tuple[str, float, float] | No
 
     if name in FRACTION_CHANNELS:
         return "viridis", 0.0, 1.0
-    if name in SIGNED_INDEX_CHANNELS:
-        return "RdYlGn", -1.0, 1.0
+    if name in SPECTRAL_INDEX_STYLES:
+        return SPECTRAL_INDEX_STYLES[name]
+    if name == "nirv":
+        limits = finite_limits(array)
+        if limits is None:
+            return None
+        return "cividis", limits[0], limits[1]
     if name in MONTH_CHANNELS:
         return "coolwarm", -1.0, 1.0
 
@@ -200,6 +211,70 @@ def plot_channels(
         plt.close(figure)
 
 
+def plot_channels_clean_svg(
+    x: np.ndarray,
+    channel_names: list[str],
+    output_path: Path,
+) -> None:
+    """Write all predictor rasters to one annotation-free SVG contact sheet."""
+    n_channels = len(channel_names)
+    n_cols = 4
+    n_rows = int(np.ceil(n_channels / n_cols))
+
+    figure, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(3.0 * n_cols, 3.0 * n_rows),
+        squeeze=False,
+    )
+    axes = axes.reshape(-1)
+
+    for channel_index, (name, channel) in enumerate(zip(channel_names, x)):
+        axis = axes[channel_index]
+        style = channel_style(name, channel)
+
+        if style is None:
+            axis.imshow(
+                np.full(channel.shape, np.nan, dtype=np.float32),
+                cmap="gray",
+                vmin=0.0,
+                vmax=1.0,
+                interpolation="nearest",
+            )
+            axis.set_facecolor("#eeeeee")
+        else:
+            cmap, vmin, vmax = style
+            axis.imshow(
+                channel,
+                cmap=cmap,
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="nearest",
+            )
+
+        axis.set_aspect("equal")
+        axis.set_axis_off()
+
+    for axis in axes[n_channels:]:
+        axis.set_axis_off()
+
+    figure.subplots_adjust(
+        left=0.0,
+        right=1.0,
+        bottom=0.0,
+        top=1.0,
+        wspace=0.0,
+        hspace=0.0,
+    )
+    figure.savefig(
+        output_path,
+        format="svg",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
+    plt.close(figure)
+
+
 def plot_footprint_masks(
     masks: np.ndarray,
     footprint_valid: np.ndarray,
@@ -277,12 +352,14 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     PDF_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    SVG_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     safe_chip_id = "".join(
         character if character.isalnum() or character in "-_" else "_"
         for character in chip_id
     )
 
     channel_output = PDF_OUTPUT_DIR / f"{safe_chip_id}_channels.pdf"
+    channel_svg_output = SVG_OUTPUT_DIR / f"{safe_chip_id}_channels.svg"
     mask_output = OUTPUT_DIR / f"{safe_chip_id}_footprint_masks.png"
 
     plot_channels(
@@ -292,6 +369,11 @@ def main() -> None:
         footprint_valid,
         chip_id,
         channel_output,
+    )
+    plot_channels_clean_svg(
+        x,
+        channel_names,
+        channel_svg_output,
     )
     plot_footprint_masks(
         masks,
@@ -308,6 +390,7 @@ def main() -> None:
     print(f"Chip ID: {chip_id}")
     print(f"Valid footprints: {int(footprint_valid.sum())}")
     print(f"Wrote {channel_output}")
+    print(f"Wrote {channel_svg_output}")
     print(f"Wrote {mask_output}")
 
 

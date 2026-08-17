@@ -2,12 +2,28 @@ library(tidyverse)
 library(sf)
 library(terra)
 
-sif_path <- "data/main_sif_data/9tiles_2_7_M01_QF01_inrange_PARrm.rds"
+sif_path <- "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv"
 mgrs_tif_dir <- "data/temp_data/mgrs_tifs"
 germany_path <- "data/germany_boundaries.gpkg"
 output_path <- "eda_images/pdf/sif_centroids_mgrs_tile_boundaries.pdf"
+satellite_svg_path <- "eda_images/svg/sif_footprints_satellite_2022-05-07.svg"
 
-sif <- readRDS(sif_path)
+sif_corner_columns <- c(
+  "Lon_corner1", "Lat_corner1",
+  "Lon_corner2", "Lat_corner2",
+  "Lon_corner3", "Lat_corner3",
+  "Lon_corner4", "Lat_corner4"
+)
+
+sif <- readr::read_csv(sif_path, show_col_types = FALSE) %>%
+  mutate(
+    Delta_Date = as.Date(Delta_Date),
+    across(all_of(sif_corner_columns), as.numeric)
+  ) %>%
+  filter(
+    !is.na(Delta_Date),
+    if_all(all_of(sif_corner_columns), is.finite)
+  )
 sif_mgrs_tiles <- paste0("T", str_remove(unique(sif$mgrs_tile), "^T"))
 germany_states <- st_read(germany_path, quiet = TRUE) %>% st_transform(4326)
 
@@ -19,14 +35,133 @@ mgrs_tiles <- map(b5_paths, \(path) { raster <- rast(path); st_as_sf(as.polygons
   filter(mgrs_tile %in% sif_mgrs_tiles) %>%
   st_transform(4326)
 
-sif_polygons <- lapply(seq_len(nrow(sif)), \(i) st_polygon(list(matrix(c(sif$Lon_corner1[i], sif$Lat_corner1[i], sif$Lon_corner2[i], sif$Lat_corner2[i], sif$Lon_corner3[i], sif$Lat_corner3[i], sif$Lon_corner4[i], sif$Lat_corner4[i], sif$Lon_corner1[i], sif$Lat_corner1[i]), ncol = 2, byrow = TRUE))))
+sif_polygons <- lapply(
+  seq_len(nrow(sif)),
+  \(i) st_polygon(list(matrix(
+    c(
+      sif$Lon_corner1[i], sif$Lat_corner1[i],
+      sif$Lon_corner2[i], sif$Lat_corner2[i],
+      sif$Lon_corner3[i], sif$Lat_corner3[i],
+      sif$Lon_corner4[i], sif$Lat_corner4[i],
+      sif$Lon_corner1[i], sif$Lat_corner1[i]
+    ),
+    ncol = 2,
+    byrow = TRUE
+  )))
+)
 
-sif_centroids <- st_sf(sif, geometry = st_sfc(sif_polygons, crs = 4326)) %>%
+sif_footprints <- st_sf(
+  sif,
+  geometry = st_sfc(sif_polygons, crs = 4326)
+) %>%
+  st_make_valid()
+
+#-------------------------------------------------------------------------------
+# Annotation-free satellite view of the complete footprint track for one date.
+
+selected_date <- as.Date("2022-05-07")
+
+date_footprints_3035 <- sif_footprints %>%
+  filter(
+    Delta_Date == selected_date,
+    is.finite(target_modis_sif)
+  ) %>%
+  st_transform(3035)
+
+if (nrow(date_footprints_3035) == 0) {
+  stop("No finite SIF footprints were found for 2022-05-07.")
+}
+
+map_extent_3035 <- date_footprints_3035 %>%
+  st_union() %>%
+  st_bbox() %>%
+  st_as_sfc() %>%
+  st_buffer(5000)
+
+map_extent_4326 <- st_transform(map_extent_3035, 4326)
+satellite_tiles_track <- maptiles::get_tiles(
+  map_extent_4326,
+  provider = "Esri.WorldImagery",
+  zoom = 11,
+  crop = TRUE,
+  project = FALSE
+)
+
+satellite_crs <- st_crs(terra::crs(satellite_tiles_track))
+map_extent_satellite <- st_transform(map_extent_3035, satellite_crs)
+date_footprints_satellite <- st_transform(
+  date_footprints_3035,
+  satellite_crs
+)
+map_bbox_satellite <- st_bbox(map_extent_satellite)
+sif_limits <- range(
+  date_footprints_satellite$target_modis_sif,
+  na.rm = TRUE
+)
+
+sif_satellite_plot <- ggplot() +
+  tidyterra::geom_spatraster_rgb(data = satellite_tiles_track) +
+  geom_sf(
+    data = date_footprints_satellite,
+    aes(fill = target_modis_sif),
+    color = NA,
+    alpha = 0.70
+  ) +
+  geom_sf(
+    data = date_footprints_satellite,
+    aes(color = target_modis_sif),
+    fill = NA,
+    linewidth = 0.3
+  ) +
+  scale_fill_viridis_c(limits = sif_limits, guide = "none") +
+  scale_color_viridis_c(limits = sif_limits, guide = "none") +
+  coord_sf(
+    xlim = c(map_bbox_satellite["xmin"], map_bbox_satellite["xmax"]),
+    ylim = c(map_bbox_satellite["ymin"], map_bbox_satellite["ymax"]),
+    crs = satellite_crs,
+    datum = NA,
+    expand = FALSE
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(0, 0, 0, 0)
+  )
+
+dir.create(dirname(satellite_svg_path), recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  satellite_svg_path,
+  plot = sif_satellite_plot,
+  device = "svg",
+  width = 7,
+  height = 9,
+  units = "in",
+  bg = "transparent"
+)
+
+message("Selected SIF date: ", selected_date)
+message("Footprints plotted: ", nrow(date_footprints_3035))
+message("Saved SVG: ", satellite_svg_path)
+
+sif_centroids <- sif_footprints %>%
   st_transform(3035) %>%
   st_centroid() %>%
   st_transform(4326)
 
 sif_centroids <- st_filter(sif_centroids, st_union(mgrs_tiles), .predicate = st_within)
+
+sif_centroids <- sif_centroids %>%
+  mutate(
+    sif_year = lubridate::year(as.Date(Delta_Date)),
+    sample_order = runif(n())
+  ) %>%
+  group_by(sif_year) %>%
+  arrange(sample_order, .by_group = TRUE) %>%
+  slice_head(n = 2000) %>%
+  ungroup() %>%
+  select(-sample_order)
+
+table(sif_centroids$sif_year)
 
 mgrs_labels <- mgrs_tiles %>%
   st_transform(3035) %>%
