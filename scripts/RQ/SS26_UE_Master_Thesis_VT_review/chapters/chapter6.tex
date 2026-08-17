@@ -1,0 +1,608 @@
+\chapter{Results and Discussions\label{cha:chapter6}}
+
+\section{Experimental Overview}
+
+This section will give an overview of the experiments done in this study and expected result. The first stage evaluated how accurately OCO-2 SIF could be predicted from satellite derived spectral, biophysical, radiation, seasonal and crop composition under several model, input data representations and target representations. The evaluated models include polygon mean Random Forest and XGBoost regression, area-to-point multilayer perceptron, single footprint U-Net (MODIS predictors), multi footprint U-Net (MODIS and Sentinel-2 predictors) and the principal Spatial aggregate (4km) U-Net. The spatial supports (data representation) ranged from tabular footprint level summaries to spatially structured image chips (with multiple channels) and therefore tested both model architecture \& choice and how the predictor information was represented. The initial baseline models used target SIF at 740nm before moving on to the uncertainty corrected combined SIF target derived from SIF at 757nm and 771nm as the later was found to increase the signal-to-noise ratio and thus make any SIF predictions more reliable. Training, validation, and test data were partitioned according to each dataset's temporal and spatial structure, complete dates, footprints, or connected date-product components kept together where used as split units, as described in Table~\ref{tab:model-training-settings}. The model performance was assessed using RMSE, MAE, bias, $R^2$, regression slope, residual behaviour, data subgroup metrics and observed-versus-predicted SIF comparisons.
+
+The results answer more general SIF prediction performance to more specific questions about data representation, model generalizability \& stability,  spatial variation and agricultural utility. The best model; Spatial aggregate (4km) was internally evaluated on held out chips (image with channels) and then externally evaluated on two previously unseen MGRS tiles on 4km windows (to match with input data extent) which produced 20m SIF maps which were then aggregated for each OCO-2 footprint and compared to original SIF observation. This external testing allowed to confirm if 20m SIF predictions aggregated to OCO-2 footprint resolution (1km$^2$) was viable. If confirmed, it would indicate the model is able to at least make SIF predictions at 1km$^2$ resolution and thus tackle the task of spatially and temporally completing a SIF map at OCO-2 SIF resolution. Comparisons between tree based, MLP and CNN models show how tabular summaries and spatial predictor grids affected accuracy of the SIF predictions. The effect of spatial aggregation on SIF prediction and retrieval-noise reduction is examined by comparing native footprint (MultiSIF Sentinel-2 model) and 4km targets (Spatial aggregate 4km model), their observed vs predicted SIF values variability, residual distributions, and performance across different footprint counts. Model behaviour is also evaluated across data subgroups for the following predictor variables: months, measurement modes, years and plant-hardiness zones which then helps identify conditions associated with stronger or weaker predictions. Finally the application of high resolution SIF predictions in winter wheat yield models were evaluated. Crop pure enhanced SIF was compared with raw mixed-footprint OCO-2 SIF at varying winter wheat coverages for select Bavarian NUTS-3 regions, testing was done on the held out 2024 subset. These results would then be compared with existing SIF enhancement approaches. 
+
+% table rq1.1 combined perf by sif bin + test perf by sif bin + external native perf by sif bin
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.08}
+
+\caption{Calibrated model performance by observed SIF interval for the combined nine-tile dataset, the held-out nine-tile test set, and the external native-footprint evaluation over two additional tiles.}
+\label{tab:rq1_performance_by_sif_bin}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\hline
+\multicolumn{9}{l}{\textbf{A. Combined training, validation and test data: nine tiles}} \\
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+$[-0.25,0)$   & 66    & $-0.0246$ & 0.0851 & 0.1264 & 0.1097 & 0.1097 & $-32.616$ & -- \\
+$[0,0.25)$    & 2,920 & 0.1373 & 0.1560 & 0.0645 & 0.0466 & 0.0187 & $-0.028$ & -- \\
+$[0.25,0.50)$ & 3,846 & 0.3721 & 0.3631 & 0.0662 & 0.0520 & $-0.0090$ & 0.091 & -- \\
+$[0.50,0.75)$ & 1,076 & 0.5712 & 0.4718 & 0.1187 & 0.1008 & $-0.0995$ & $-3.380$ & -- \\
+$[0.75,1.00)$ & 12    & 0.7873 & 0.5149 & 0.2756 & 0.2724 & $-0.2724$ & $-56.094$ & -- \\
+\hline
+
+\multicolumn{9}{l}{\textbf{B. Held-out test data: nine tiles}} \\
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+$[0,0.25)$    & 274 & 0.1509 & 0.1761 & 0.0658 & 0.0437 & 0.0251 & $-0.247$ & -- \\
+$[0.25,0.50)$ & 545 & 0.3636 & 0.3455 & 0.0605 & 0.0479 & $-0.0181$ & 0.177 & -- \\
+$[0.50,0.75)$ & 112 & 0.5643 & 0.4667 & 0.1119 & 0.0983 & $-0.0976$ & $-3.810$ & -- \\
+\hline
+
+\multicolumn{9}{l}{\textbf{C. External native-footprint evaluation: two additional tiles}} \\
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+$[-0.5,-0.25)$ & 4   & $-0.2689$ & 0.3181 & 0.5876 & 0.5870 & 0.5870 & $-3884.368$ & 0.999 \\
+$[-0.25,0)$       & 104 & $-0.0625$ & 0.1816 & 0.2798 & 0.2441 & 0.2441 & $-25.084$ & $-0.055$ \\
+$[0,0.25)$        & 652 & 0.1413 & 0.2249 & 0.1534 & 0.1174 & 0.0836 & $-4.232$ & 0.274 \\
+$[0.25,0.50)$     & 827 & 0.3707 & 0.3617 & 0.1104 & 0.0893 & $-0.0091$ & $-1.375$ & 0.307 \\
+$[0.50,0.75)$     & 350 & 0.5942 & 0.4319 & 0.1864 & 0.1634 & $-0.1623$ & $-6.672$ & 0.184 \\
+$[0.75,1.00)$     & 59  & 0.8195 & 0.4491 & 0.3832 & 0.3704 & $-0.3704$ & $-44.830$ & $-0.141$ \\
+$[1.00,1.25)$     & 4   & 1.1151 & 0.3941 & 0.7233 & 0.7210 & $-0.7210$ & $-213.446$ & 0.324 \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+%\parbox{\textwidth}{\footnotesize
+%\textit{Note:} Predicted values and performance statistics refer to the calibrated predictions. Test-set intervals containing no observations were omitted. Pearson's correlation was only available for the external evaluation.
+%}
+\end{table}
+
+% table for subgroup analysis
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.06}
+
+\caption{Calibrated fitted performance across measurement mode, temporal alignment, month, and observation-year subgroups.}
+\label{tab:rq1_subgroup_performance}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\hline
+\multicolumn{9}{l}{\textbf{A. Measurement mode}} \\
+\hline
+\textbf{Mode} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+Mode 0 & 0.0306 & 0.7200 & 0.3105 & 0.3030 & 0.0659 & 0.0492 & $-0.0075$ & 0.8090 \\
+Mode 1 & 0.0131 & 0.6790 & 0.3412 & 0.3181 & 0.0746 & 0.0566 & $-0.0231$ & 0.6885 \\
+\hline
+
+\multicolumn{9}{l}{\textbf{B. Date alignment}} \\
+\hline
+\textbf{Alignment} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+Within range & 0.0131 & 0.7200 & 0.3379 & 0.3219 & 0.0712 & 0.0539 & $-0.0160$ & 0.7421 \\
+Outside range & 0.0570 & 0.4855 & 0.1820 & 0.1794 & 0.0569 & 0.0393 & $-0.0026$ & 0.6428 \\
+\hline
+
+\multicolumn{9}{l}{\textbf{C. Observation month}} \\
+\hline
+\textbf{Month} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+February (2) & 0.0285 & 0.1449 & 0.0869 & 0.0861 & 0.0302 & 0.0236 & $-0.0008$ & $-0.2443$ \\
+March (3)    & 0.0452 & 0.3008 & 0.1267 & 0.1172 & 0.0343 & 0.0263 & $-0.0095$ & 0.4035 \\
+April (4)    & 0.0131 & 0.5578 & 0.2999 & 0.2890 & 0.0582 & 0.0453 & $-0.0109$ & 0.5123 \\
+May (5)      & 0.0828 & 0.7200 & 0.4493 & 0.4193 & 0.0876 & 0.0712 & $-0.0301$ & 0.4355 \\
+June (6)     & 0.2119 & 0.6527 & 0.4200 & 0.4035 & 0.1025 & 0.0753 & $-0.0165$ & $-0.2676$ \\
+July (7)     & 0.0441 & 0.5177 & 0.3447 & 0.3463 & 0.0816 & 0.0609 & 0.0016 & 0.2947 \\
+\hline
+
+\multicolumn{9}{l}{\textbf{D. SIF observation year}} \\
+\hline
+\textbf{Year} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+2019 & 0.0131 & 0.6527 & 0.3117 & 0.3021 & 0.0654 & 0.0493 & $-0.0095$ & 0.4809 \\
+2020 & 0.0452 & 0.3008 & 0.1267 & 0.1172 & 0.0343 & 0.0263 & $-0.0095$ & 0.4035 \\
+2022 & 0.0828 & 0.7200 & 0.4482 & 0.4190 & 0.0890 & 0.0721 & $-0.0293$ & 0.4202 \\
+2023 & 0.2315 & 0.5481 & 0.4099 & 0.4069 & 0.0729 & 0.0579 & $-0.0030$ & 0.0938 \\
+2024 & 0.0285 & 0.1449 & 0.0869 & 0.0861 & 0.0302 & 0.0236 & $-0.0008$ & $-0.2443$ \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+%\parbox{\textwidth}{\footnotesize
+%\textit{Note:} Predicted means and performance statistics refer to calibrated predictions. Measurement-mode labels follow the numerical encoding in the source data. Values are rounded to four decimal places.
+%}
+\end{table}
+
+
+\section{Overall SIF Prediction Performance}
+
+The primary model for this study; Spatial aggregate (4km) U-Net was evaluated first on held out 4km grid cells from the nine MGRS tiles (internal dataset for training, validation, testing) and later evaluated on native OCO-2 footprints from two additional MGRS tiles. This testing process allowed to see how the performance changed when the spatial support was changed from 4km grid to the noisier and finer native footprint support, remember the spatial aggregation was done primary to reduce the retrieval noise during data acquisition. The calibrated model reported RMSE of 0.0701 and $R^2$ of 0.761 for 931 grid cell targets for the held out 4km test set as shown in Figure~\ref{fig:rq1_obv_pred_9tiles}. The predictions regression on observations had a slope of 0.726 and an intercept of 0.074. Therefore the model was able to explain a substantial part of the variation in the aggregated SIF target. The slope below one shows that its predicted range was narrower than the observed range, ie; low SIF values were overpredicted while the largest values were generally underestimated. One reason could be the lower sample size of these values as seen in the combined fitted SIF bin performance table \ref{tab:rq1_performance_by_sif_bin}. In light of this, the strong spatial aggregate result should be interpreted as accurate prediction of the noise reduced 4km SIF means rather than a direct validation for every 20m output SIF pixel. To verify if this strong performance can be carried out to a much lower resolution, it was validated with the lowest resolution real SIF data (OCO-2 SIF footprints).
+
+% Figure rq1.1
+
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.80\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.24\textheight,
+            keepaspectratio
+        ]{\detokenize{img/3_obv_pred_4km_spatial.pdf}}
+        \caption{Internal nine tile evaluation}
+        \label{fig:rq1_obv_pred_9tiles}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.80\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.24\textheight,
+            keepaspectratio
+        ]{\detokenize{img/1_obv_vs_pred_4km-spatial_external_native_2tiles.pdf}}
+        \caption{External two tile evaluation}
+        \label{fig:rq1_obv_pred_external_2tiles}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.80\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.24\textheight,
+            keepaspectratio
+        ]{\detokenize{img/1_obv_vs_pred_4km-spatial_external_native_2tiles_sif0_075.pdf}}
+        \caption{External two tile evaluation restricted to SIF $\leq 0.75$}
+        \label{fig:rq1_obv_pred_external_2tiles_sif075}
+    \end{subfigure}
+
+    \caption{Observed and predicted SIF for the 4 km spatial aggregation model. The plot shows internal evaluation across the nine training region MGRS tiles, external evaluation using native OCO-2 observations from two unseen tiles and the same external evaluation restricted to observations with SIF values of $0.75$ or lower.}
+    \label{fig:rq1_observed_predicted_comparison}
+\end{figure}
+
+The external native footprint experiment applied the same trained model and validation derived post training calibration to 2,000 individual OCO-2 footprints in the two new MGRS tiles that were not seen during model training. For the 2,000 footprints, the calibrated RMSE was 0.1701, $R^2$ was 0.373, and regression slope was 0.400 (Figure~\ref{fig:rq1_obv_pred_external_2tiles}). The mean bias was only $-0.0034$, but this small value could be the result of positive and negative residual values cancelling each other out as previously discussed. The external test plot shows strong range compression, with low and negative observations predicted too high and high observations predicted too low. Given that our SIF range seen during model training was around $[0,0.75)$, 1,829 external footprints evaluation with SIF range $[0,0.75)$ reduced RMSE to 0.1424 and increased slope to 0.472 while $R^2$ remained 0.349
+(Figure~\ref{fig:rq1_obv_pred_external_2tiles_sif075}). The lower RMSE is expected since the reduced external SIF range matches closely to the training SIF range. No change in $R^2$ can attributed to the native SIF samples being extremely noisy as can be seen in (Figure~\ref{fig:rq1_obv_pred_external_2tiles_sif075}), but high density of points can still be seen closer to the diagnol. 
+
+The interval-specific results in Table~\ref{tab:rq1_performance_by_sif_bin} can clarify this behaviour. In the held-out nine tile test set, RMSE was 0.0658 for SIF in $[0,0.25)$ and 0.0605 for $[0.25,0.50)$, but increased to 0.1119 for $[0.50,0.75)$. The corresponding bias changed from $+0.0251$ in the lowest interval to $-0.0976$ in the highest interval, thereby confirming the tendency of the model to pull predictions towards the centre of the target distribution. This pulling effect was stronger at native footprint scale where RMSE decreased from 0.1534 in $[0.0,0.25)$ to 0.1104 in $[0.25,0.50)$  and increased to 0.1864 in $[0.50,0.75)$ and 0.3832 in $[0.75,1.00)$. The very small sample counts in the extreme intervals mean that their individual statistics are uncertain, but the overall direction of the errors is consistent with the observed-versus-predicted plots. We can see that model was able to predict well for native OCO-2 SIF resolution for the SIF range $[0.0,0.75)$. It should be noted that negative within-bin $R^2$ values should not be read as a contradiction of the overall test $R^2$ because each narrow SIF interval contains much less target variation, so even moderate absolute errors can perform worse than that's interval mean predictor. Spatial aggregation largely removed negative SIF samples and therefore it cannot be expected for the model to predict them in the native external set. 
+
+The performance also varied across acquisition date, temporal subgroups, measurement modes (Table~\ref{tab:rq1_subgroup_performance}).  Measurement mode~0 (Nadir) subgroups had an RMSE of 0.0659 and an $R^2$ of 0.809 versus 0.0746 and 0.689 for mode~1 (Glint), this slight variation is expected as Nadir will capture the signals more strongly than Glint \cite{doughty2022global}. SIF observations whose acquisition dates were within (ingrange) the temporal range of their Sentinel-2 products had a higher $R^2$ than observations outside (outrange) that range (0.742 versus 0.643). The date\_align RMSE values were lower for outrange samples because its observed SIF range was much smaller than inrange samples. For the months, we can see the RMSE increasing monthwise till June, this corresponds to the SIF range also being more variable as the months proceeded. Year specific results should be taken with caution as the available months and sample counts differed among years, therefore it does not form a controlled test for generalization among different years. 
+
+Feature importance for this model was acquired by permutation importance of the validation set. Figure~\ref{fig:validation_channel_permutation_importance} shows
+that FAPAR caused the largest increase in validation RMSE when permuted, followed by the seasonal cosine channel and NIRv. Since \(\mathrm{SIF} \approx \mathrm{APAR}\times\Phi_F\times f_{\mathrm{esc}} 
+= \mathrm{PAR}\times\mathrm{fAPAR}\times\Phi_F\times f_{\mathrm{esc}}\), SIF and GPP share dependence on absorbed radiation, it makes sense that FAPAR was the most important variable, likewise \cite{gensheimer2022convolutional} showed NIRv to be important in their SIF enhancement model and the same effect can be seen here too. APAR, NDVI and EVI were the next influential predictor variables and PAR alone, most crop faction channels had relatively small RMSE improvement effects. The higher importance of APAR than PAR shows that the absorbed radiation supplied more useful information to the model than the incoming radiation. Among the crop channels, the active crop channel contributed more to the RMSE improvement than the individual crop fractions, signifying seasonal representation of crop composition data provided more useful information to the model. It should be noted that these values are conditional permutation results rather than causal effects. To reiterate, it shows how much the trained model relies on each predictor given all the other predictors are available, it does not prove that changing the predictor physically causes the SIF to change. Also another important point, correlated predictors can substitute for one another, therefore any near-zero or negative importance can indicate redundancy of some predictors rather than physical irrelevance. 
+
+The spatial residual map for the internal test samples as seen in Figure~\ref{fig:test_spatial_residual_map_germany} shows the spatial distribution of over and underestimation of SIF values. Positive and negative residuals occurred across the nine tiles showing that the overall error was composed of spatially varying local outcomes rather than one uniform outcome. This map is useful for identifying locations where differences in land cover, predictor quality, acquisition timing or distribution of the OCO-2 footprints may have affected the prediction of SIF values. It should be noted that this residual map is only for the nine tiles internal testing and doesn't include external native footprint residuals. The terminal colours on the map represent both the clipping threshold and any extreme residuals as the colour scale was clipped symmetrically at 98 percentile (($\pm 0.180$)). The final results for all these figures and tables show that high resolution spectral, biophysical, radiation, seasonal and crop information predicted noise reduced 4km SIF target with good accuracy. This model was able to carry out its performance for the native external set for the SIF range $[0.0,0.75)$ particularly. Since the scope of this study is only for Germany, acquiring noise 4km SIF samples outside this range may not be possible or may not yield a sizeable sample count for the model to train on $[0.75,1.5)$ SIF range samples. Finally the predicted 20m SIF maps should be described as spatial downscaling limited to the fine resolution predictors and aggregate OCO-2 supervision, it cannot be validated as 20m SIF values as no real SIF dataset exists at 20m resolution.
+
+\section{Effects of Model Architecture and Input Representation}
+
+Model architecture comparison covered the tree based regressions, area-to-point multilayer perceptron and several U-Net configurations, each using either polygon level tabular predictors or spatial raster chips (images with channels). Table~\ref{tab:rq2_model_comparison} shows that the Spatial aggregate (4km) U-Net achieved the strongest internal result, with an RMSE of 0.0701 and an $R^2$ of 0.761. When tested on an external native OCO-2 footprint resolution, it was able to achieve an RMSE from 0.1534 to 0.1864 for the SIF range $[0.0,0.75)$, but it was not able to  carry out the strong performance outside this range as the internal training dataset SIF range was limited to around $[-0.25,1)$ with only about 78 samples for the extreme ranges $[-0.25,0)$ and $[0.75,0)$. For the following native footprint experiments (single, multi SIF footprints, mean aggregated predictions), the multi footprint Sentinel-2 model obtained an RMSE of 0.1603 and $R^2$ of 0.418. The MODIS single-footprint model was similarly competitive, with an RMSE of 0.1656 and an $R^2$ of 0.457. This indicated that both 20m and 250m base predictor resolutions were suitable for SIF predictions. Polygon-means XGBoost and Random Forest produced RMSE values of 0.1650 and 0.1689, with $R^2$ values of 0.453 and 0.426, respectively. This also showed reducing the predictor values to one single mean value over the target support was competitive with the CNN models that could see internal spatial configurations. The small differences between these native footprint experiments indicate that retaining a spatial structure for the predictors did not automatically improve footprint level predictive accuracy over polygon mean predictors. The MODIS baseline model and the area-to-point MLP used SIF at 740nm as the target variable, they reported much higher RMSE values of 0.2693 and 0.2503 than the models that uses the combined SIF target derived from SIF at 757nm and 771nm. This indicated that the combined SIF target was able to increase the signal-to-noise ratio compared to the SIF at 740nm target. It should be noted that the results compare complete modelling systems that differ in target definition, predictor source, spatial support, calibration, data partition and sample size, therefore it cannot theoretically provide a controlled test of model architecture alone.
+
+The observed-versus-predicted plots for all the native footprint models shown in Figure~\ref{fig:rq2_observed_predicted_comparison} show a   compression of the predicted SIF range toward its centre. We can see the spatial aggregate (4km) model is able to keep the predictions more closer to the diagonal line than the native footprint models ie; the distribution is more closer to the line indicating the noise reduction. The fitted slopes were approximately 0.439 for the multi footprint Sentinel-2 model, 0.444 for Random Forest, and 0.465 for XGBoost, while for the spatial aggregate (4km) model it had a much higher slope of 0.726. We can also see that the spatial aggregate model can predict SIF values better in the  $[0.0,0.75)$ range than the native footprint models, extreme SIF ranges remain a challenge for all the models. Likewise the residual distributions in Figure~\ref{fig:test_residual_distributions} support the same interpretation: the Spatial aggregate (4km) model had a much narrower residual distribution, while models evaluated against individual footprints showed broader tails. A large part of this difference can be attributed to the noise reduction produced by aggregating several close OCO-2 observations rather than the model architectures. The SIF prediction maps along with equivalent NDVI map in Figure~\ref{fig:example_predicted_sif_ndvi_comparison}
+demonstrate an important representation advantage of the image based models as they are able to reflect patterns much more complex because their output preserved field scale spatial patterns and surrounding landscape spatial context. XGBoost and RandomForest (not shown) was also applied to form a 20m SIF predicted map since each predictor variable had a 20m resolution, but it should be noted that each SIF pixel was predicted independently and any visual spatial continuity in the predicted map is from the predictor raster structure rather than any learned neighbourhood relationships. These predicted SIF maps are spatial dowscaling products rather than direct pixel level validated maps (since no true 20m SIf data exists). To summarize the results, target preparation and spatial support (predictor representation) had a larger influence on the accuracy of prediction rather than the choice of the model architectures (tree based, MLP, CNN). 
+
+% table rq2.1 rq2 comp table
+
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.10}
+
+\caption{Comparison of the calibration status, SIF target, sample size, and fitted performance of the evaluated RQ2 model configurations.}
+\label{tab:rq2_model_comparison}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrrr}
+\hline
+\textbf{Model} & \textbf{Calibration} & \textbf{SIF target} & \textbf{$n$} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Pearson $r$} \\
+\hline
+Spatial Aggregate 4 km (SA4km) & Calibrated & MODIS SIF & 931 & 0.0701 & 0.0527 & $-0.0149$ & 0.761 & -- \\
+SA4km OCO-2 native inference & Calibrated & MODIS SIF & 2,000 & 0.1701 & 0.1300 & $-0.0034$ & 0.373 & 0.612 \\
+SA4km OCO-2 native, SIF $[0,0.75)$ & Calibrated & MODIS SIF & 1,829 & 0.1434 & 0.1135 & $-0.0054$ & 0.349 & 0.613 \\
+\hline
+MultiSIF-Sen2 & Calibrated & MODIS SIF & 6,411 & 0.1603 & 0.1223 & $-0.0166$ & 0.418 & -- \\
+MODIS $24\times24$ & Calibrated & MODIS SIF & 2,187 & 0.1679 & 0.1293 & 0.0010 & 0.349 & -- \\
+MODIS $16\times16$ & Calibrated & MODIS SIF & 22,149 & 0.1656 & 0.1255 & 0.0011 & 0.457 & -- \\
+MODIS $16\times16$ & Uncalibrated & 740 nm SIF & 26,905 & 0.2693 & 0.2107 & 0.0588 & 0.350 & -- \\
+MLP area-to-point & Uncalibrated & 740 nm SIF & 5,291 & 0.2503 & 0.1912 & $-0.0053$ & 0.415 & 0.646 \\
+\hline
+PolyMeans: XGBoost & Uncalibrated & MODIS SIF & 5,889 & 0.1650 & 0.1274 & 0.0125 & 0.453 & 0.675 \\
+PolyMeans: Random Forest & Uncalibrated & MODIS SIF & 5,889 & 0.1689 & 0.1311 & 0.0146 & 0.426 & 0.656 \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+%\parbox{\textwidth}{\footnotesize
+%\textit{Note:} A dash indicates that Pearson's correlation was not reported. The number of evaluated observations differs among configurations because the models use different target supports and evaluation datasets.
+%}
+\end{table}
+
+
+
+% table rq3.2 multisif perf by sifbin
+
+\begin{table}[htbp]
+\centering
+\caption{Calibrated MultiSIF test performance across observed SIF intervals.}
+\label{tab:multisif_performance_by_sif_bin}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\hline
+\textbf{SIF interval} & \textbf{$n$} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} \\
+\hline
+$[-0.50,-0.25)$ & 1     & $-0.2513$ & $-0.2513$ & $-0.2513$ & 0.4294 & 0.6808 & 0.6808 & 0.6808 & -- \\
+$[-0.25,0)$     & 306   & $-0.2329$ & $-0.0002$ & $-0.0555$ & 0.1689 & 0.2650 & 0.2244 & 0.2244 & $-25.959$ \\
+$[0,0.25)$      & 2,240 & 0.0001    & 0.2499    & 0.1411    & 0.2064 & 0.1360 & 0.1015 & 0.0653 & $-3.013$ \\
+$[0.25,0.50)$   & 2,606 & 0.2502    & 0.4997    & 0.3664    & 0.3394 & 0.1105 & 0.0894 & $-0.0270$ & $-1.546$ \\
+$[0.50,0.75)$   & 1,063 & 0.5001    & 0.7495    & 0.5943    & 0.4227 & 0.2008 & 0.1743 & $-0.1716$ & $-7.940$ \\
+$[0.75,1.00)$   & 186   & 0.7511    & 0.9889    & 0.8269    & 0.4832 & 0.3567 & 0.3437 & $-0.3437$ & $-34.460$ \\
+$[1.00,1.25]$   & 9     & 1.0281    & 1.2161    & 1.0891    & 0.5101 & 0.5854 & 0.5790 & $-0.5790$ & $-117.500$ \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+%\parbox{\textwidth}{\footnotesize
+%\textit{Note:} Predicted means and performance metrics refer to the calibrated predictions. The $R^2$ value is undefined for the first interval because it contains only one observation.
+%}
+\end{table}
+
+% Figure rq1.2
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{%
+        \detokenize{img/Validation_channel_permutation_importance.pdf}}
+
+    \caption{Validation set permutation importance of the predictor channels.
+        Predictor importance is measured as the increase in validation RMSE after
+        independently permuting each predictor. The markers indicate the mean
+        increase in RMSE, while the horizontal error bars represent variability
+        across three permutation repeats. Larger positive values indicate
+        greater predictive importance, whereas values close to or below zero
+        indicate little contribution to validation performance. FAPAR, seasonal cosine term and NIRv show the greatest importance.}
+    \label{fig:validation_channel_permutation_importance}
+\end{figure}
+
+% Figure rq1.3
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/test_spatial_residual_map_germany.pdf}}
+
+    \caption{Spatial distribution of the calibrated 4 km test residuals across
+        Germany ($N=931$). Each grid cell is coloured according to the
+        difference between predicted and observed SIF also known as residual. Red cells indicate positive residuals and therefore model overestimation, whereas blue cells indicate negative residuals and model underestimation.}
+    \label{fig:test_spatial_residual_map_germany}
+\end{figure}
+
+% Figure rq2.3
+
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_4km_spatial_test_residual_distribution.pdf}}
+        \caption{Spatial Aggregate  (4km)}
+        \label{fig:residual_4km_spatial}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_multi_sif_test_residual_distribution.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:residual_multisif}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_rf_test_residual_distribution.pdf}}
+        \caption{PolyMean Random Forest}
+        \label{fig:residual_rf}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/4_xgboost_test_residual_distribution.pdf}}
+        \caption{PolyMean XGBoost}
+        \label{fig:residual_xgboost}
+    \end{subfigure}
+
+    \caption{Test-set residual distributions for (a) the Spatial aggregate (4km) model, (b) MultiSIF-Sen2, (c) PolyMean Random Forest, and (d) PolyMean XGBoost. Residuals are calculated as calibrated predicted SIF minus observed SIF. Values near zero indicate closer agreement with the observations.}
+    \label{fig:test_residual_distributions}
+\end{figure}
+
+
+\section{Spatial Aggregation, Stability and Generalization}
+
+Spatial aggregation of SIF observations (nearest samples averaged to one value for one grid cell) greatly reduced the variability of the observed targets and also model errors. The standard deviation (SD) of the observed SIF decreased from 0.210 for multi SIF (multiple sif footprints in one window but treated as individual footprints. We can also call these native footprint) to 0.144 for 4km spatial aggregates, the interquartile range for the SIF value also decreased from 0.291 to 0.203 shown in Table~\ref{tab:rq3_model_comparison}, signifying SIF range compression as a result of spatial grouping. The residual standard deviation dropped from 0.159 to 0.069 (native footprint to spatial aggregate) and the normalized RMSE improved from 0.763 to 0.488. NRMSE was used for strict comparison purposes to account for the fact that observed SIF SD fell from 0.210 to 0.144, individual model effectiveness will use RMSE. So after taking care of this SD change, the RMSE dropped thereby showing that the spatial aggregate 4km model still performed better even after accounting for the smaller variation in the aggregated SIF values. Figure~\ref{fig:rq3_observed_predicted_comparison} shows a tighter observed vs predicted relationship for the aggregated model, showing less scatter around the fitted regression line and a slope closer to one. Footprint count analysis as seen in Figure~\ref{fig:footprint_count_stability_rmse} shows additional evidence that spatial aggregation reduced SIF retrieval noise, where the mean target standard error declined from approximately 0.060 for chips (4km windows) containing five or six footprints to about 0.040 for chips containing at least thirteen. Likewise RMSE decreased from about 0.080 for five or six footprints to about 0.062 for eleven or twelve footprints. We can see a slight increase in RMSE for thirteen or more footprints, this could indicate that adding more observations to 4km window may not necessarily guarantee improvement in prediction as high footprint count chips may represent neighbouring cells that are different from each other. Therefore increased spatial density of OCO-2 footprints in a 4km window only slightly reduces the uncertainty of the reconstructed SIF product. Spatial aggregation improved target stability and predictive accuracy but it also narrowed the target range from approximately $-0.25$-1.25 at native support to 0.0-0.72 at 4km support and removed most negative and very high SIF observations. 
+
+% table rq3.1 rq3 comp table
+
+\begin{table}[p]
+\centering
+\small
+\renewcommand{\arraystretch}{1.12}
+\caption[Comparison of the two Sentinel-2 U-Net models]{Comparison of the spatially aggregated and multi-footprint Sentinel-2 U-Net models. Continuous values are rounded to three decimal places.}
+\label{tab:rq3_model_comparison}
+
+\begin{tabular}{@{}p{0.24\textwidth}p{0.34\textwidth}p{0.34\textwidth}@{}}
+\hline
+\textbf{Metric} & \textbf{Spatial U-Net} & \textbf{Multi-footprint U-Net} \\
+\hline
+Supervision & Spatially aggregated SIF & Individual SIF footprints within multi-footprint chips \\
+Target support & 4 km fixed-grid cell & Native OCO-2 footprint \\
+Predictor resolution & 20 m & 20 m \\
+\hline
+Training samples & 6,060 & 4,983 \\
+Validation samples & 929 & 553 \\
+Test samples & 931 & 686 \\
+Test dates & 21 & 18 \\
+\hline
+Observed mean & 0.325 & 0.320 \\
+Observed SD & 0.144 & 0.210 \\
+Observed IQR & 0.203 & 0.291 \\
+Observed minimum & 0.013 & $-0.251$ \\
+Observed maximum & 0.720 & 1.216 \\
+\hline
+RMSE & 0.070 & 0.160 \\
+Normalized RMSE & 0.488 & 0.763 \\
+MAE & 0.053 & 0.122 \\
+Bias & $-0.015$ & $-0.017$ \\
+$R^2$ & 0.761 & 0.418 \\
+Regression slope & 0.726 & 0.439 \\
+Regression intercept & 0.074 & 0.163 \\
+Residual SD & 0.069 & 0.159 \\
+\hline
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:rq1_performance_by_sif_bin} and Table~\ref{tab:multisif_performance_by_sif_bin} provides the SIF interval level results. For the held out 4km test set (internal), RMSE was 0.066, 0.061, and 0.112 in the $[0,0.25)$, $[0.25,0.50)$, and $[0.50,0.75)$ SIF intervals showing strong performance whereas for the native footprint model, higher RMSE values of of 0.136, 0.111, and 0.201 was reported for the same SIF intervals. The Spatial aggregate (4km) model was tested out on an external native footprint test set and showed RMSE values 0.153, 0.110, and 0.186 which was closer to the native multi footprint model. One of the major reason for that is the native footprint is quite noisy inherently, but visual inspection of the external observed vs predicted plot in (Figure~\ref{fig:rq1_obv_pred_external_2tiles_sif075}) shows there is a high density of points close to the diagonal line. The aggregate model's external errors were large for observations outside the aggregate training range, reaching an RMSE of 0.280 for $[-0.25,0)$, 0.383 for $[0.75,1.00)$, and 0.723 for $[1.00,1.25)$ thereby showing that learned relationships in the $[0.0,0.75)$ range cannot be carried over to the extreme SIF intervals. Violin plots as shown in Figure~\ref{fig:target_residual_stability_comparison} illustrates the effect of spatial aggregation, where the greater width of the violin indicates a higher concentration of observations. The 4km model's residual distribution is more concentrated around zero compared to the native footprint residuals which have a wider spread and longer tails. This indicates that the aggregation reduced target variability and increased prediction stability. Since the aggregate internal, multi footprint, and aggregate external results were obtained from different spatial supports and test observations, we can only confirm that these comparisons describe general patterns rather than strict paired sample-by-sample patterns. In conclusion, aggregation provided useful SIF retrieval noise reduction, but since the aggregation caused the loss of extreme targets, the model couldn't learn these extreme targets. A larger scope of the dataset outside Germany is needed to get a larger sample size of SIF values in the range $[0.75,1.25)$.
+
+% Figure rq2.1
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_4km_spatial.pdf}}
+        \caption{4 km Spatial-Aggregate}
+        \label{fig:rq2_obv_pred_4km}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_multi_sif.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:rq2_obv_pred_multisif}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_rf.pdf}}
+        \caption{PolyMean Random Forest}
+        \label{fig:rq2_obv_pred_rf}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{%
+            \detokenize{img/3_obv_pred_xgboost.pdf}}
+        \caption{PolyMean XGBoost}
+        \label{fig:rq2_obv_pred_xgboost}
+    \end{subfigure}
+
+    \caption{Observed versus predicted SIF for (a) the Spatial aggregate (4km) model, (b) MultiSIF-Sen2, (c) PolyMean Random Forest, and (d) PolyMean XGBoost. The plot points generally fall close to the diagonal for the Spatial Aggregate (4km) while shows high variability for other models. The colour scale indicates observation density.}
+    \label{fig:rq2_observed_predicted_comparison}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{%
+        \detokenize{img/target_and_residual_stability_comparison.pdf}}
+    \caption{Comparison of target and prediction-residual stability between native OCO-2 footprints and 4km spatial aggregates. Panel (a) presents the observed SIF distributions, while panel (b) presents the calibrated prediction residuals.}
+    
+    \label{fig:target_residual_stability_comparison}
+\end{figure}
+
+% Figure rq3.3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{%
+        \detokenize{img/effect_of_footprint_count_on_stability_and_rmse.pdf}}
+
+    \caption{Effect of the number of OCO-2 footprints within each 4km cell on target stability and prediction accuracy. The left panel shows the mean standard error of the aggregated SIF target, while the right panel shows the calibrated test RMSE for each footprint count class.}
+    \label{fig:footprint_count_stability_rmse}
+\end{figure}
+
+\section{Agro-Climatic and Seasonal Variation in Model Performance}
+
+The combined fitted evaluation ~\ref{tab:performance_by_hardiness_zone} uses the training, validation, and test predictions from the Spatial aggregate (4km) to examine inter plant hardiness zone performance given that the overall model performance has been established in the previous sections. Table~\ref{tab:performance_by_hardiness_zone} shows that zone 7b had the lowest RMSE at 0.0690, while zone 7a had the highest $R^2$ at 0.8681. SIF prediction performance was slightly weaker in zones 8a, 8b which had bigger sample sizes, they reported RMSE of 0.0772 and 0.0803 and $R^2$ 0.7812 and 0.7553 respectively. Zone 9a had the highest RMSE of 0.0946 and largest bias of $-0.0272$, but this estimate was based on a small sample size of 58 observations obtained from 14 date tracks and two MGRS tiles. The choropleth maps in Figure~\ref{fig:hzs_performance_choropleth} show the geographical distribution of the differences in RMSE values with respect to plant hardiness zones. It should be noted that the reported values represent broad zone level peformance rather than continuous local accuracy, ie; a single value for an individual plant hardiness zone. Figure~\ref{fig:residual_distribution_individual_hzs} are the residual boxplots of each available plant hardiness zone and shows similar central residual distributions across the five zones, with residual medians generally below zero and occasional large positive and negative errors. Again, the smaller sample size for zone 9a makes it residual distribution less reliable compared to the other zones. 
+
+% table rq4.1 perf by hzs zones
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.10}
+
+\caption{Calibrated fitted performance by individual hardiness zone.}
+\label{tab:performance_by_hardiness_zone}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrr}
+\hline
+\textbf{HZS} & \textbf{$n$} & \textbf{Obs. min} & \textbf{Obs. max} & \textbf{Obs. mean} & \textbf{Pred. mean} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{$R^2$} & \textbf{Dates} & \textbf{Tiles} \\
+\hline
+7a & 151   & $-0.0496$ & 0.7544 & 0.2477 & 0.2337 & 0.0703 & 0.0518 & $-0.0140$ & 0.8681 & 30  & 1 \\
+7b & 894   & $-0.0347$ & 0.7462 & 0.3190 & 0.3038 & 0.0690 & 0.0517 & $-0.0153$ & 0.8176 & 63  & 5 \\
+8a & 4,458 & $-0.0937$ & 0.8291 & 0.3066 & 0.2983 & 0.0772 & 0.0585 & $-0.0083$ & 0.7812 & 201 & 9 \\
+8b & 1,502 & $-0.0891$ & 0.8783 & 0.3155 & 0.3021 & 0.0803 & 0.0608 & $-0.0134$ & 0.7553 & 169 & 8 \\
+9a & 58    & $-0.0040$ & 0.7881 & 0.4114 & 0.3842 & 0.0946 & 0.0697 & $-0.0272$ & 0.7752 & 14  & 2 \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+%\parbox{\textwidth}{\footnotesize
+%\textit{Note:} HZS denotes the hardiness zone. Predicted means and performance statistics refer to calibrated predictions. Dates and tiles indicate the number of distinct observation dates and spatial tiles represented within each zone.
+%}
+\end{table}
+
+Figure~\ref{fig:hzs_month_rmse_heatmap} shows the month versus plant hardiness zone RMSE performance plot, where the RMSE was lowest in February and March with values in 0.034-0.053 range. Errors increased for months April-July, with May and June reporting the highest RMSE values. RMSE reached 0.094 in zone 7a during May, 0.096 in zone 8b during June, and 0.090 in zone 8a during both June and July. There were some combination of zone-month values that count less than 20 or no data, these RMSE values were not reported as the sample size is too low to draw an meaningful conclusion. The increase in RMSE for the later months might be partly due to the expansion of SIF range values (wider SIF variation), changing crop conditions and differences in the spatial distributions rather than a purely climatic zone effect. Across the high sample size zones 7b, 8a, 8b, RMSE varied by only about 0.011, thereby suggesting that the model maintained reasonably stable peformance across different agro-climatic conditions. The month to month changes were larger than the differences between these zones, thereby indicating that the seasonal crop development and SIF variability mattered more on the prediction error than plant hardiness zone membership alone. Lastly the negative biases and residual medians indicate a small tendency for the model to under predict SIF across almost all zones. 
+
+% Figure rq4.1
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/hzs_month_rmse_heatmap.pdf}}
+
+    \caption{Plant hardiness zone monthwise heatmap. It shows the monthwise calibrated RMSE values for each hardiness zone, generally showing lower RMSE for months February-April and greater variation for the later months.}
+    \label{fig:hzs_month_rmse_heatmap}
+\end{figure}
+
+
+% Figure rq4.2
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/hzs_performance_choropleth_rmse_r2.pdf}}
+
+    \caption{Spatial variation in model performance across plant hardiness zones. The model is able to perform better on the southern German states.}
+    \label{fig:hzs_performance_choropleth}
+\end{figure}
+
+% Figure rq4.3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.8\textheight,
+        keepaspectratio
+    ]{\detokenize{img/residual_distribution_by_individual_hzs.pdf}}
+
+    \caption{Distribution of calibrated SIF prediction residuals across individual plant hardiness zones.}
+    \label{fig:residual_distribution_individual_hzs}
+\end{figure}
+
+
+\section{Winter-Wheat Yield Prediction}
+
+The winter wheat yield experiments compared crop pure enhanced SIF, raw OCO-2 footprints with at least 5\%, 10\%, 30\% wheat coverage and all available raw OCO-2 footprints in five MGRS tiles using a standard fixed configuration Random Forest. A fixed Random Forest configuration was used as the main purpose of this experiment was to see predicitive power of the individual data subsets rather than model configurations. It should also be noted that the 10\% and 30\% wheat coverage subsets were excluded from this result section as they were found to have very few reliable samples owing to the fact most of the SIF footprints had a low wheat farm area due to small farm plots and high mixed crop farms. Table~\ref{tab:yield_model_performance} shows that the crop pure yield model achieved the lowest 2024 test RMSE at 0.9406~t/ha versus 1.0285~t/ha for the raw 5\% wheat coverage model and 1.0874~t/ha for the all footprint model. These differences correspond to RMSE reductions of approximately 8.5\% and 13.5\% when crop pure SIF was used. The crop pure model also had the lowest MAE, bias, and residual standard deviation, but its normalized RMSE was above one and its $R^2$ was still negative at $-0.1456$ but higher than the raw SIF models. Figure~\ref{fig:observed_predicted_yield_models} shows that all the three models compressed predictions toward the average yield. The crop pure model showed a clearer positive relationship with observed yield than either of the raw SIF models. 
+
+% Figure rq5.1
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.95\textheight,
+        keepaspectratio
+    ]{\detokenize{img/observed_vs_predicted_yield_models.pdf}}
+
+    \caption{Observed and predicted 2024 NUTS-3 winter wheat yields using crop pure monthly SIF, raw SIF from footprints with at least 5\% wheat coverage, and raw SIF from all footprints.}
+    \label{fig:observed_predicted_yield_models}
+\end{figure}
+
+
+
+% Figure rq5.3
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.9\textheight,
+        keepaspectratio
+    ]{\detokenize{img/paired_regional_absolute_error_improvement.pdf}}
+
+    \caption{Absolute yield prediction error obtained with crop pure SIF relative to the two raw SIF representations per NUTS 3 region. Positive values indicate improvement with crop pure SIF.}
+    \label{fig:paired_regional_error_improvement}
+\end{figure}
+
+
+
+Figure~\ref{fig:bootstrap_rmse_improvement} shows a mean crop pure RMSE improvement of about 0.084~t/ha over the 5\%-wheat model, with an estimated probability of 0.879 that crop pure SIF produced the lower RMSE. It also shows the mean crop pure RMSE improvement of 0.143~t/ha over the all footprint model with a probability of 0.918. However it should be noted that, the 95\% bootstrap intervals were $[-0.066,0.213]$ and $[-0.052,0.347]$~t/ha with both crossing zero, so the improvement was not statistically conclusive at the 95\% level. Paired bootstrap resampling was used because the test set contained only 48 test samples (48 NUTS3 regions). It estimated how uncertain the RMSE difference was while ensuring that both models were repeatedly compared using the same sampled regions. The pair regional comparison as shown in Figure~\ref{fig:paired_regional_error_improvement} shows an uneven spatial response. Crop pure SIF reduced absolute error in 27 of 48 regions relative to 5\% model and 26 out of 48 regions relative to all footprint model. The takeaway is that the results provide preliminary evidence that crop pure enhanced SIF can improve winter wheat yield prediction compared to the raw SIF (mixed crop SIF signals), but the negative $R^2$ values and wide bootstrap intervals show that the present models are not yet sufficient for making claims regarding strong yield prediction claims. A negative $R^2$ means the model predicted the 2024 yields worse than a simple baseline that assigns every test region the mean observed 2024 yield. The reasons for this could be the very small test dataset and year to year distribution differences. Therefore the results can only support relative improvement from raw SIF to crop pure SIF, but cannot be treated as a reliable stand-alone yield prediction model. Additional observation years and more NUTS 3 regions would be needed to determine whether the crop pure SIF advantage remains stable in a larger yield dataset. Given the small number of yield model ready observations, extending this trained yield model to other c3 crops cannot be reliably done as mean aggregation to NUTS 3 scale will make the dataset much more sensitive to small changes. Therefore it is recommended to apply the same crop pure SIF extraction workflow separately for other c3 crops and generate the model ready dataset rather than applying a single yield model for all c3 crops in a given region. 
+
+% table rq5.1 yield_model_performance_comparison
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.10}
+
+\caption{Comparison of winter-wheat yield-model performance using three monthly SIF aggregation strategies.}
+\label{tab:yield_model_performance}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrr}
+\hline
+\textbf{Model} & \textbf{$n_{\mathrm{train}}$} & \textbf{$n_{\mathrm{test}}$} & \textbf{RMSE} & \textbf{NRMSE} & \textbf{MAE} & \textbf{$R^2$} & \textbf{Bias} & \textbf{Slope} & \textbf{Intercept} & \textbf{Residual SD} & \textbf{Bootstrap RMSE interval} \\
+\hline
+Crop-pure monthly SIF & 197 & 48 & 0.9406 & 1.0591 & 0.7598 & $-0.1456$ & 0.3507 & 0.1798 & 5.8570 & 0.8820 & $[0.7679,\ 1.1068]$ \\
+Raw $\geq 5\%$ wheat monthly SIF & 197 & 48 & 1.0285 & 1.1581 & 0.7769 & $-0.3698$ & 0.4395 & 0.0288 & 6.9595 & 0.9397 & $[0.7737,\ 1.2612]$ \\
+Raw all-footprint monthly SIF & 197 & 48 & 1.0874 & 1.2244 & 0.7911 & $-0.5311$ & 0.4622 & $-0.0132$ & 7.2645 & 0.9947 & $[0.8045,\ 1.3663]$ \\
+\hline
+\end{tabular}%
+}
+
+\vspace{0.3em}
+%\parbox{\textwidth}{\footnotesize
+%\textit{Note:} NRMSE denotes normalized RMSE. The final column reports the lower and upper bootstrap bounds for RMSE. All continuous values are rounded to four decimal places.
+%}
+\end{table}
+
+
+
+\section{Comparison with Existing Techniques \label{sec:comparison}}
+
+Out of the existing SIF enhancement in Table \ref{tab:sif_enhancement_literature}, SIFnet \cite{gensheimer2022convolutional} and CNSIF \cite{du2025cnsif} produces the highest resolution SIF estimates at 500m resolution. This thesis's best SIF enhancement model Spatial aggregate (4km) will be compared with these primarily as they use CNN models and similar predictors but their metrics are not directly equivalent because the SIF enhanced products use different SIF targets, spatial supports, timeframe and validation observations. For the internal test, the Spatial aggregate (4km) developed on February-July observations during 2019-2024 across nine German MGRS tiles obtained an RMSE of 0.0701 and a R$^2$ of 0.761 on 931 held out 4km (cell of 16km$^2$ area) aggregate targets. The external test on 2,000 native OCO-2 footprints from the same seasonal and yearly domain in two previously unseen German MGRS tiles produced an RMSE of 0.1434 and R$^2$ of 0.349, this validation was done at roughly 1km$^2$ resolution. SIFnet was trained for 16-day periods during 2018-2021 using five regions across Asia, Europe, souther Africa and South America with North America (CONUS) used as the held out internal test set. They were able to use such a large geographic scope because they used MODIS 500m resolution predictor variables which is much coarser than the 10m, 20m Sentinel-2 raster data. A single sinusoidal gridded (covering 1,112km by 1,112km area) MODIS data has around 2400 by 2400 pixels for one predictor whereas a single MGRS grid tile (covering 110km by 110km) data can have around 30.25m to 121m pixels, an extremely large difference. Its held out CONUS internal test at $0.05^{\circ}$ scale was RMSE of 0.17 and $R^2$ of 0.92. SIFnet also externally validated their model on OCO-2 footprint samples in CONUS using a $0.005^{\circ}$ support, obtaining a RMSE of 0.21 and $R^2$ of 0.57. 
+
+The thesis 4 km spatial model’s external validation results are in line with those reported for SIFnet, showing that the model can learn a transferable relationship between the Sentinel-2 \& secondary predictor variables and SIF. SIFnet has an important advantage because a spatially complete, TROPOMI SIF parent field is available to guide each downscaled estimate, whereas the thesis model has no parent SIF input and must perform OCO-2 gap filling and resolution enhancement together using auxiliary predictors alone which is a much more challenging problem. CNSIF conducted downscaling on GOSIF $0.05^{\circ}$ (roughly 20km$^2$ area) target support on years 2003-2018, 2020-2022 and obtained $R^2$ of 0.856 and RMSE of 0.089 against a 2019 withheld GOSIF test set. Its external evaluation was on SIF data obtained through ChinaSpec ground tower sites in nine select local regions in China covering the years 2017-2021 and reported a pooled $R^2$ of 0.581 and RMSE of 0.152. This is less comparable with the thesis external evaluation compared to SIFnet, but still provides a reasonable range of expected performance metrics.  A direct comparison of the yield models with existing crop yield studies cannot be justified because their geographic domains, predictors, crops, and training sample sizes differ. The supported comparison is instead internal for the thesis yield model, where crop-pure enhanced SIF reduced 2024 Bavarian NUTS-3 RMSE by 8.5\% relative to the 5\% wheat coverage mixed footprint signal and by 13.5\% relative to all raw OCO-2 footprints, providing preliminary evidence that isolating crop-specific SIF can be more useful than retaining mixed signals.
+
+% Figure rq5.2
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=0.95\textwidth,
+        height=0.95\textheight,
+        keepaspectratio
+    ]{\detokenize{img/bootstrap_rmse_improvement_distribution.pdf}}
+
+    \caption{Paired bootstrap distributions of the RMSE improvement achieved by crop pure SIF relative to the two raw SIF representations. Positive values indicate lower RMSE for crop pure SIF.}
+    \label{fig:bootstrap_rmse_improvement}
+\end{figure}

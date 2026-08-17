@@ -1,0 +1,393 @@
+\chapter{Methods\label{cha:chapter5}}
+
+\section{Research Design and Study Area\label{sec:research_methods}}
+
+\subsection{Overall Research Design}
+
+The thesis study followed a predictive research design that links satellite based SIF enhancement with an agricultural yield application. Rather than designing the work as a single end to end model, it was modeled in two analytical stages. The first stage uses machine learning based models to learn relationships between OCO-2 SIF observations and spatially complete biophysical, radiation, seasonal and crop-type predictors. The second stage uses the enhanced SIF data produced by the best performing model; Spatial Aggregate (4km) restricted to winter wheat pixels which was then grouped and summarized by month and NUTS level 3 administrative regions and finally used as a predictor for the winter-wheat yield model. To reiterate, SIF data was first spatially enhanced, given completeness spatially and temporally and this enhanced SIF data is finally used to test if it could provide useful signal for a crop yield prediction model. Both of the stages used historical predictor data with held-out test or inference data which ensured the results describe a predictive association between the target and predictor variables rather than a casual effect of an individual predictor. 
+
+The SIF enhancement stage was designed as a supervised mapping between a set of spatial predictors to a SIF value with a defined spatial support (spatial resolution of the predictors). We can define this mathematically as 
+
+\begin{equation}
+    \widehat{S}_{u,t} = f_{\theta}\!\left(\mathbf{X}_{u,t}\right),
+    \label{eq:general_sif_mapping}
+\end{equation}
+
+where $f_{\theta}$ represents a fitted tree-based, multilayer-perceptron, or CNN model with parameters $\theta$, $u$ denotes the spatial support or OCO-2 footprint, $t$ the observation time, $\mathbf{X}_{u,t}$ the predictor variables, and $S_{u,t}$ the OCO-2-derived target (this input target representations can vary from a single data point to spatial aggregates combined multiple targets into one value, this will be discussed in depth in ~\ref{sec:input_data}). For area-to-point MLP, $\mathbf{X}_{u,t}$ was a footprint-level matrix containing the predictor values for every 20 m pixel, For polygon-mean models, $\mathbf{X}_{u,t}$ was a tabular summary of footprint-level statistics, For CNN models, $\mathbf{X}_{u,t}$ was a multi-channel raster chip.
+
+The SIF enhancement experiments used different model architectures and data representations (both target and predictors). For the polygon-mean models, mean aggregation of predictor values falling within an OCO-2 footprint were averaged and fitted to a single SIF value, Area-to-point model uses a multilayer perceptron to fit pixel level sentinel-2 data to footprint scale SIF. Single footprint CNN experiments uses one target footprint in one image chip (channels representing predictors), whereas multi footprint CNN experiments uses multiple same date footprints in one image chip after  which a footprint mask-averaged prediction was computed. The best experiment; spatial-aggregate (4km) combines by averaging at least 5 OCO-2 observations in a fixed 4km grid cell and a CNN model is trained on it with an aggregate footprint-weight map as many of the 4km grid cells will have some it's SIF polygons falling partially outside the cell. Given that almost all of the experiments have different architectures and data representations, if one model performs better, the improvement cannot be attributed only to it being a CNN, MLP, Random Forest, or XGBoost model. The result reflects the entire combination of data preparation, predictors, target definition, spatial support, and model architecture.
+
+The downstream task of predicting winter wheat yield used the same predictive logic as the first task, but works on a much more coarser spatial scale. Since the yield data available is at NUTS 3 level which is the highest resolution, we can only conduct the yield analysis at this spatial scale. For NUTS-3 region $r$ and year $y$, the winter-wheat yield can be represented as
+
+\begin{equation}
+    \widehat{Y}_{r,y} = g_{\phi}\!\left(S_{r,y,3},S_{r,y,4},S_{r,y,5},S_{r,y,6},S_{r,y,7}\right),
+    \label{eq:yield_design}
+\end{equation}
+
+where $S_{r,y,m}$ denotes a monthly SIF predictor for March through July and $g_{\phi}$ denotes the fitted yield model. To see if the SIF enhancement helps improve the yield modelling, separate versions of the input data were produced in the form of crop pure enhanced SIF (ie; only winter wheat pixels' SIF values were taken), raw OCO-2 footprint SIF values which is a representation of mixed crop SIF values. The raw OCO-2 SIF values was also constrained to SIF polygons containing at least 10\% winter wheat out of the SIF footprint crop area. The yield model design held the yield target, region-year groupings and Random Forest configuration constant while changing the SIF representation. To reiterate, the crop pure predictors where SIF values taken from crop pixels that were winter wheat, whereas the raw baselines took OCO-2 footprints with either no crop purity requirement or a minimum crop (winter wheat) coverage threshold (5\%, 10\%, 30\%). Years 2019-2022 subset was used for model training and 2024 subset was used as the test data. This ensured any performance evaluation can be said to be generalized over years, ie; it measured whether crop-targeted enhancement reduced out-of-year prediction error compared to SIF observations that were combination of different crop SIF values for a given footprint. 
+
+\begin{figure}[p]
+    \centering
+    \rotatebox{90}{%
+        \begin{minipage}{0.92\textheight}
+            \centering
+            \includegraphics[
+                width=\linewidth,
+                keepaspectratio
+            ]{img/workflow.pdf}
+            \caption{Overview of the experimental workflow.}
+            \label{fig:workflow}
+        \end{minipage}%
+    }
+\end{figure}
+
+
+\subsection{Geographical Scope}
+
+The SIF enhancement study domain was Germany, where the data domain was represented by a set of Sentinel-2 Military Grid Reference System (MGRS) tiles rather than by a single national level raster. Since the Sentinel-2 data (the main high resolution predictor data) was only available in MGRS tiles format, we have to stick to tile based data domain rather than state boundary, agricultural zone etc. based domain. The nine MGRS tiles used for the Sentinel-2 training predictor data were \texttt{T32ULA}, \texttt{T32ULB}, \texttt{T32UMD}, \texttt{T32UNA}, \texttt{T32UNC}, \texttt{T32UNE}, \texttt{T32UPC}, \texttt{T32UPE}, and \texttt{T32UPU}. These tiles sampled data across north, centre and south of Germany and included all the major crop-producing states in Germany: Bayern, Niedersachsen, Sachsen-Anhalt, Mecklenburg-Vorpommern, Nordrhein-Westfalen, Rheinland-Pfalz, Schleswig-Holstein, Hessen. Figure~\ref{fig:sif_centroids_mgrs_boundaries} shows the distribution of SIF polygons from 2019-2024 in the 9 MGRS tiles. Since the experiment design has different model architectures and data representations, we cannot claim an uninterrupted high resolution coverage of every location in Germany for every experiment as the predictions are restricted by availability of OCO-2 tracks, Sentinel-2 product availability, quality filters and selected months in the input data. Therefore any Germany-wide conclusions can only refer to the diversity represented by the selected tiles and observations rather than to an exhaustive census of all German pixels.
+
+Two additional MGRS tiles, \texttt{T32UQV} and \texttt{T32UMC}, were used for external native-footprint evaluation of the best model; Spatial-aggregate (4km) model. This helped quantify if target to predictor relationships learned on the 9 MGRS tiles could be transfered to new locations or in this case, new MGRS tiles. Also the external native-footprint evaluation tests whether a 20m resolution SIF map predicted by the model and then aggregated to the native OCO-2 footprint matched with the original OCO-2 footprint SIF value, if it tested well then we can conclude that both geographic transfer to unseen tiles and transfer from aggregated training support back to approximately native OCO-2 footprint support works well.
+
+The winter-wheat yield model focused on Bavaria as it is the largest wheat producing state in Germany and making 20m resolution SIF maps was extremely computationally and time consuming. Fives MGRS tiles were used for the winter-wheat yield model in Bavaria: \texttt{T32UNA}, \texttt{T32UPU}, \texttt{T32UQV}, \texttt{T32UPA}, and \texttt{T32UPV}. A Bavarian NUTS 3 region was retained if at least 50\% of it's area fell within one of the above MGRS tiles. Visual inspection of the NUTS 3 regions as seen in Figure~\ref{fig:sif_centroids_mgrs_boundaries} and associated winter wheat mask map as seen in Figure~\ref{fig:sif_centroids_mgrs_boundaries} helped confirm that the NUTS 3 regions that were only partially present in the MGRS tile had majority of their wheat producing areas in the MGRS tile. Yield prediction was done at NUTS 3 region-year level because this was the highest spatial and temporal availability of the official yield data.   
+
+Agro-climatic variation in the form of Plant Hardiness zones was represented independently of the administrative and raster tiling data domains. Each SIF observation inherited one or more plant hardiness zone labels from the spatial zone layer, and model performance was later summarized for the individual zones 7a, 7b, 8a, 8b, and 9a. Mixed labels occurred due to some of the SIF polygons falling across multiple plant hardiness zones. MGRS tiles, federal states, NUTS regions, and hardiness zones therefore served different purposes and were not treated as interchangeable regional definitions, each are suited to how the data was available. MGRS tiles defined Sentinel-2 raster storage and experimental partitions, federal states gave geographic context, NUTS 3 regions was required for the yield target support and plant hardiness zones described agro-climatic conditions. Keep these geographic roles separate allowed a fitted SIF enhancement model to be evaluated by state boundary geography, season, agro-climatic zone without changing its corresponding prediction target. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=\textwidth,
+        keepaspectratio
+    ]{img/sif_centroids_mgrs.pdf}
+    \caption{Spatial distribution of OCO-2 SIF observation centroids across the selected MGRS tiles. For reliable plotting, 2000 samples were retained for each year.}
+    \label{fig:sif_centroids_mgrs}
+\end{figure}
+
+
+\subsection{Temporal Scope and Spatial Supports}
+
+The main SIF enhancement predictor and target datasets covering year range 2019-2024 focused on months February to July as these are the main growing period for Winter Wheat in Germany. OCO-2 observations are basically tied to individual acquisition dates, the OCO-2 satellite do not make regular revisit over the same track instead are staggered by weeks to months around the track and therefore highly irregular in time. Sentinel-2 predictors are monthly composites whose composite temporal range can vary from 7 days to 45 days. GLASS products other than GLASS PAR are 8-day composites, eg; Day of Year 01 composite (DOY 01) covers DOY 01 to DOY 08. GLASS PAR is available as daily source files. VIIRS PAR is represented as daily mean source files. Dates were matched according to the available date range of each product rather than with one common nearest date rule. The predictor variables were temporally matched with the OCO-2 observation dates in the following method: Sentinel-2 records were linked by month and product interval, eight-day GLASS products were linked to the interval containing the SIF date, and VIIRS PAR was matched by exact date as it is a daily source file. OCO-2 records that were outside a Sentinel-2 product interval as obtained from the supporting WASP DTS raster files (these files were available for 10m and 20m reflectance bands and contained days since start of year for each pixel, thus essentially allowing us to identify the temporal range of the monthly composite) were retained with a \texttt{date\_align} flag for later evaluation. The yield analysis used March to July in 2019-2022 and 2024, while 2023 was excluded because Sentinel-2 WASP products had poor coverage for this year.  Years 2019-2022 were used for model development and 2024 was held out for testing. The predictors were kept as separate month wise average predictors allowing to preserve any seasonal information in winter wheat growth and senescence.
+
+The thesis study's experiments developed several spatial supports (target and predictor spatial resolution) that were kept distinct for each modelling and evaluation experiment. Sentinel-2 bands at 10 m and 20 m were aligned to a common 20 m grid to better align spectral index calculation and also reduce computational complexity. Every other data source would later be aligned to this common 20m grid as in the case of the CNN models since they require consistent image resolutions and dimensions for training. The 10m crop type rasters were converted to fractional crop maps on the common 20m grid. GLASS FAPAR had an actual pixel spacing (resolution) of approximately 231.7 m while VIIRS PAR had a spacing of approximately 927 m, these were both aligned with the Sentinel-2 predictors. Each 20m pixel would acquire it's corresponding GLASS predictor value depending on the alignment, many 20m pixels can have the same GLASS values due to the considerable resolution differences. OCO-2 observations were irregular polygons ranging from elognated parallelograms shape (Nadir) to triangle, trapezoid shape (Glint) with areas typically close to 1 km$^2$. Single-footprint and multi-footprint enhancement experiments preserved the individual footprint targets, but as the name suggests, multi-footprint chips included several separate masks (each mask corresponding to a SIF footprint). Spatial-aggregate (4km) experiment averaged at least five same-date observations within a fixed 4 km cell represented by 200x200 predictor pixels (each pixel at 20m resolution). External Native OCO-2 resolution inference tested the Spatial-aggregate (4km) model by averaging its 20 m predictions over individual OCO-2 footprints in unseen tiles and comparing the averaged value to the original SIF observation value. For the winter wheat yield model, Spatial-aggregate (4km) model predictions over each 10m winter wheat pixels (regridded to 20m) were aggregated to one monthly value for each NUTS-3 region and year. The Spatial-aggregate (4km) model produces SIF predictions at 20 m, but since there is no real 20m SIF data for validation, the validation could only be done at Native OCO-2 SIF resolution (around 1 km$^2$). The 20m SIF predicted map is thus a downscaled estimate and not a directly verified 20m ground truth, more will be discussed in the Results section.
+
+\section{Datasets\label{sec:datasets}}
+
+\subsection{OCO-2 SIF Observations}
+
+NASA OCO-2 observations provided the target variable for all the SIF enhancement experiments. The data source was the Level 2 bias-corrected solar-induced fluorescence product generated with the IMAP-DOAS retrieval and distributed as daily files planet wide coverage by the NASA Godard Earth Sciences Data and Information Services Center (GES DISC). Two product releases V11.r and V11.2r were combined row-wise and used for the thesis study \cite{oco2_sif_v11r,oco2_sif_v112r}.  The files contained daily-corrected SIF retrievals at 740 nm, 757 nm, and 771 nm, together with their retrieval-uncertainty fields, acquisition time, latitude and longitude, four latitude \& longitude corners describing the elongated ground footprint (usually in the form of an elongated parallelogram), quality flags, measurement mode, viewing geometry, illumination geometry, source-file identifiers, and selected meteorological fields. Measurement mode determined if the observation was retrieved in Nadir or Glint mode. Quality Flag determined the quality of the SIF observations with higher number flag given to observations obscured by cloud, haze and other climate conditions, consequently Quality Flag (0,1) was chosen for this study. Phase angle was calculated from the viewing geometry and illumination geometry and helped determine if SIF values drastically changed in a given area if the phase angle changed considerably. The temporal range for OCO-2 observations for this study covered 2019-2024. Even though years preceding and following this range existed, due to the temporal availability of year wise crop type rasters (2019-2024), the study's data temporal range was restricted to 2019-2024. 
+
+\subsection{Sentinel-2 L3A WASP Monthly Composites}
+
+The driving predictor data for high resolution SIF enhancement was Sentinel-2 L3A WASP data, these were monthly composites Sentinel-2 composites produced by the Weighted Average Synthesis Processor (WASP). WASP forms temporal syntheses from atmospherically corrected Sentinel-2 Level 2A inputs generated with MAJA, with the processing specifications documented by Hagolle et al. \cite{hagolle_maja_2017,hagolle_wasp_2018}. The WASP products (product referring to one year-month composite data directory containing the various Band raster and supporting files) were organized by MGRS tile, year and monthly synthesis date which provided consistent spatial reference for the study areas in Germany. The monthly composite product supplied blue, green, red, and near-infrared reflectance bands B2, B3, B4, and B8 at 10 m resolution. Red-edge, narrow near-infrared, and short-wave-infrared bands B5, B6, B7, B8A, B11, and B12 were available at 20 m resolution. Each product also contained 10 m and 20 m classification layers, identified as \texttt{FLG\_R1} and \texttt{FLG\_R2}, alongside the Band rasters which helped determine if the data pixel was land, water, cloud, snow or no data. Band (reflectance) value was encoded as signed 16- bit integers with a quantification value of 10,000, with no data assigned as -10,000. The temporal coverage for the data was monthly composites for February to July during 2019-2024. Since 20m resolution was still a high resolution, 10m reflectance bands were aggregated to 20m resolution in the data preprocessing steps since all the input data needed to be at the same spatial resolution and a lot of computation power was gained with not dealing with 10m resolution. Each year-month composite collection was around 30-35GB in size and took around 30-50mins to download from Centre national d'études spatiales (CNES) GEODES portal. An earlier WASP collection from Deutsches Zentrum für Luft und Raumfahrt (DLR) EOC service was available for download, but data preceding 2024 were archived in May, 2026 and was no longer available for download.
+
+\subsection{GLASS Vegetation and Radiation Products}
+
+The Global LAnd Surface Satellite (GLASS) product suite provided medium resolution vegetation index and radiation variables. Regular updates and additions of new spatial data to the GLASS product suite have been done from 2013-2023 as shown in \cite{liang_glass_2013, liang2013global, liang_glass_suite_2020, liang2023updates}. Before an expensive model data preparation and model training could be done on very high resolution Sentinel-2 predictors (20m resolution), the GLASS provided predictors was used to test if the overall data preparation methodology and model architectures were suited for the SIF enhancement task. The GLASS products were fraction of absorbed photosynthetically active radiation (FAPAR), photosynthetically active radiation (PAR), normalized difference vegetation index (NDVI), and enhanced vegetation index (EVI). FAPAR was obtained from the GLASS09D01 V60 archive at 500m resolution, PAR was obtained from GLASS04B01 V42 at $0.05^{\circ}$ spatial resolution while NDVI and EVI were obtained from the corresponding GLASS13D01 and GLASS14D01 250 m MODIS products. These products other than PAR were supplied as eight-day composites on the MODIS sinusoidal grid and stored in HDF format. MODIS sinusoidal tiles \texttt{h18v03} and \texttt{h18v04} were the two tiles that covered the entirety of Germany. The temporal range was 2019-2024 and focused on composite start days from day of year 033 to 209 (covering February to July approximately). PAR in contrast was supplied as daily source files, but for the case of this study, eight day sequence matching FAPAR, NDVI and EVI day of year were downloaded to reduce the amount of data to be downloaded and processed. These GLASS products will also be referred to as Moderate Resolution Imaging Spectroradiometer (MODIS) variables as they are enhanced data derived from raw spectroradiometer data.
+
+\subsection{VIIRS Daily PAR Product}
+
+Daily Photosynthetically Active Radiation (PAR) data for the principal Sentinel-2 workflow came from the VIIRS/NPP Photosynthetically Active Radiation Daily Level 3 Global 1 km Sinusoidal Grid Version 2 product, identified as VNP18A2 \cite{wang_vnp18a2_2025}. This data has a much higher resolution (1km) than the GLASS provided PAR data at $0.05^{\circ}$. The product provides daily average photosynthetically active radiation and it's associated categorical quality layer. Its native grid is a VIIRS sinusoidal projection with a pixel resolution of approximately 927m. This sinusoidal project  or coordinate reference system was later realigned with the optical predictor grid as described in Section~\ref{sec:data_preprocessing}. The quality layer provides quality codes that describe the data's usability rather than a continuous numerical ranking between the retrievals. Daily mean PAR was chosen instead of Instantaneous PAR (available at every 3 hours intervals daily) because the OCO-2 SIF values were daily-corrected SIF values. PAR data was presented in the form of HDF files which were downloaded for the unique OCO-2 observation dates. Like the FAPAR dataset, Germany scope data was present in two separate tiles which had to be mosaicked properly. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=\textwidth,
+        keepaspectratio
+    ]{img/mgrs_nuts3.pdf}
+    \caption{Selected NUTS 3 Regions for the yield model. All NUTS 3 regions with only partial overlap in an MGRS tile have most of their wheat farms within this overlap when compared with Figure \ref{fig:winter_wheat_fraction}}
+    \label{fig:mgrs_nuts3}
+\end{figure}
+
+\subsection{Crop, Regional, and Yield Data}
+
+Annual crop type raster was obtained from the German Aerospace Center (DLR) EOC Geoservice \cite{asam_crop_2022,gessner_crop_2025}. The yearly rasters provided a 10m resolution categorical raster that marked and labelled every classified crop pixel on Germany's map into 21 distinctive crops falling in the crop groups: cereal, oilseed, root-crop, grassland, woody-crop, other agricultural, and non-crop classes. These annual crop type rasters provided the crop spatial information needed for footprint level crop composition predictor variables and downstream winter wheat yield analysis. Administrative boundaries of Germany, German federal state boundaries, NUTS 3 regions were obtained from the Geographic Information System of the Commission through the \texttt{giscoR} interface \cite{R-giscoR}. NUTS level 1 represented German federal states, while NUTS level 3 represented the districts and independent cities used in the Bavarian yield analysis. German plant hardiness zone polygons defining the agro-climatic regions for Germany were acquired by downloading the geojsons in the leaflet data directory provided by \cite{germany_hardiness_zones}. Official Bavarian crop harvest tables provided district-level yields for 2019, 2020, 2021, 2022, and 2024 \cite{bavaria_harvest_statistics}. Year 2023 was not included in the yield model study because Sentinel-2 WASP products had limited temporal coverage for 2023, ie; not all the necessary months were available for all previously defined MGRS tiles. The target variable for the yield model was \emph{Winterweizen (einschl. Dinkel und Einkorn)} which reports winter wheat yield. The yield values were reported in decitonnes per hectare using German numeric formatting, these would be converted to tonnes per hectare to allow for cross-study comparison. 
+
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=\textwidth,
+        keepaspectratio
+    ]{img/winter_wheat_fraction.pdf}
+    \caption{Distribution of winter wheat fractions in 1km pixels across Germany. This figure visualizes where high density wheat farms are located in Germany. The 10m raster data was mean aggregated to 1km and only high wheat fraction pixels were kept.}
+    \label{fig:winter_wheat_fraction}
+\end{figure}
+
+
+\section{Data Preprocessing\label{sec:data_preprocessing}}
+
+\subsection{OCO-2 Target and Footprint Preparation}
+
+The downloaded OCO-2 files were converted into a row-wise observation table where each row represented one SIF observation (sounding). The main target variable was constructed from the daily corrected SIF values at 757nm and 771nm. For sounding $i$, the combined target as noted in \cite{yu2019high} was defined as 
+
+\begin{equation}
+    S_i = \frac{S_{757,i}+1.5S_{771,i}}{2},
+    \label{eq:combined_sif_target}
+\end{equation}
+
+where $S_{757,i}$ and $S_{771,i}$ are the daily-corrected retrievals in the two oxygen absorption bands. 771nm SIF retrieval is multiplied by 1.5 to bring it closer to the scale of 757nm retrieval before we can combine both the values into one SIF value is that much more noise free than the individual retrievals. This combined target is called \texttt{target\_modis\_sif} in the processed SIF data. The 740nm retrieval target was used for the initial experiments, MODIS 16$\times$16, area-to-point as seen in Table \ref{tab:rq2_model_comparison}. As mentioned earlier, every OCO-2 SIF retrieval comes with an uncertainty factor, retrieval uncertainty was adjusted using the OCO-2 daily correct factor before any unreliable observations could be removed. Let $\sigma_{757,i}$ and $\sigma_{771,i}$ denote the corrected uncertainties, the uncertainty of the combined target was calculated as
+
+\begin{equation}
+    \sigma_i = \frac{1}{2}
+    \sqrt{\sigma_{757,i}^{2}+\left(1.5\sigma_{771,i}\right)^{2}}.
+    \label{eq:combined_sif_uncertainty}
+\end{equation}
+
+In this study, negative SIF was not automatically removed eventhough theoretical SIF value cannot be negative. This is because small negative retrievals can occur during observation when the signal is close to zero. A negative value was accepted when $S_i+2\sigma_i\geq0$ and marked as questionable when $S_i+2\sigma_i\geq0$ check failed and  $S_i+3\sigma_i\geq0$ was satisfied, and finally the negative value was rejected when $S_i+3\sigma_i<0$ was satisfied. The main datasets for the experiments kept negative SIF values that were classified as accepted by this rule. After this, a broad SIF bin range check of $-0.5\leq S_i<2.0$ was then used to remove implausible combined values. Quality Flag and Measurement mode was restricted to values 0,1. For Quality Flag this represented best and good values, whereas for Measurement mode this represented Nadir mode and Glint mode. 
+
+Each SIF sounding (observation, row) was built into a polygon from its four recorded corner coordinates instead of using the existing latitude and longitude, as the latter were found to be offset by some distance from the polygon's true centroid. This would complicate later SIF polygon assignments, alignments to various grids, boundary selections. The corner pairs were ordered from the original matrix representation to form a closed polygon in WGS 84 coordinate reference system (CRS), and any invalid polygons formed during polygon construction were repaired if possible. For this study, polygon area and centroid operations were carried out after transformation to the coordinate system ETRS89-LAEA Europe (EPSG:3035), so that distances and areas were measured in metres as the WGS 84 CRS is for latitude and longitude representation. The centroid retrieved from the polygon was used for assignment to federal states, plant hardiness zones, MGRS tiles, fixed grid cells, and NUTS-3 regions. The polygon geometry was important for raster extraction and for fractional footprint masks. This was important as  an elongated OCO-2 footprint can cross a raster or administrative boundary even when its centroid lies on only one side. Every SIF observation row also kept a row identifier, acquisition date, source file. These metadata fields allowed SIF observations to be traced through later joins, chip manifests, model predictions, and any subgroup evaluations.
+
+\subsection{Temporal Matching and Spatial Alignment}
+
+Most of the data products do not have exact temporal alignment or matching, therefore the predictor dates were matched according to the temporal meaning of each data product. An OCO-2 SIF observation was matched to the Sentinel-2 monthly composite for the same tile, year and month. As mentioned earlier, each Sentinel-2 composite comes with its own DTS raster which contains the lower and upper bound date acquisition ranges of each pixel in a reflectance (band) raster, these lower and upper bound dates were compared with the OCO-2 observation date. SIF observations inside this interval were labelled as \texttt{inrange} while observations outside were labelled \texttt{outrange}. Both date alignment groups were retained in the main dataset because most of the out-of-range differences were small and their performance could be reported separately shown in Table \ref{tab:rq1_subgroup_performance}. The GLASS products eight-day FAPAR, EVI, and NDVI datasets were matched by the composite interval containing the SIF day rather than by the numerically closest composite start date. For example, a SIF observation on day of year DOY07 belongs to the product beginning on DOY01, since DOY01 composite  describes days 01-08. Daily VIIRS PAR was matched to the exact OCO-2 date as they were available as daily source files, while the earlier GLASS PAR product used the closest available day to a SIF date.
+
+In regards to spatial alignment, for the CNN models all image channels within one convolutional sample (chip) had to share the same rows, columns, extent, and coordinate reference system. The experiments using Sentinel-2 data thereby used a 20m reference grid in the UTM coordinate system. Sentinel-2 10m reflectance bands were reduced to this 20m grid by area averaging, while reflectance bands already at 20 m did not need readjustments. Each convolutional sample (chip) cropped its own GLASS FAPAR and PAR section and reprojected it to the 20m grid using bilinear interpolation. For VIIRS PAR, the PAR quality mask was applied on the native VIIRS grid before reprojection, and only quality codes 1 and 2 were accepted. For GLass products, FAPAR values outside the range 0 to 1 and PAR values outside the range 0 to 700 were treated as missing data. APAR was calculated as the pixel-wise product of FAPAR and PAR. 
+
+Categorical information had to be handled in a different way compared to the previous continuous reflectance and radiation (FAPAR, PAR, APAR) data. The Sentinel-2 classification masks provided by the FLG rasters were used to keep pixels that were only land recorded values, this was done before any of the spectral indices were calculated. Annual crop codes were converted into separate binary membership rasters and then averaged onto the 20m grid, this would be used the crop channel for the CNN model input chips. For the crop channel a value of 0.75 means that three quarters of the contributing 10m area (croptype rasters are originally at 10m resolution) belonged to the stated crop group. Since OCO-2 SIF polygons were vector data, they were rasterized as fractional masks, so boundary pixels could take values between zero and one according to the proportion of the pixel covered by the SIF polygon. Fractional masks were preferred to binary masks because a 20m (Sentinel-2 experiments) or 250m pixel (modis predictors) rarely follows the slanted edge of a SIF polygon exactly, ie; the SIF edge polygon almost always diagonally cuts a pixel. 
+
+\subsection{Predictor and Crop-Channel Construction}
+
+This section will present how the various channels for a CNN model input chip (image)  were constructed. For this study, five spectral indices were calculated from land masked Sentinel-2 reflectance bands. They are defined as 
+
+\begin{align}
+    \mathrm{NDVI} &= \frac{B8-B4}{B8+B4}, &
+    \mathrm{NDMI} &= \frac{B8-B11}{B8+B11}, \nonumber\\
+    \mathrm{NDRE} &= \frac{B8A-B5}{B8A+B5}, &
+    \mathrm{NIRv} &= B8\times\mathrm{NDVI}, \nonumber\\
+    \mathrm{EVI} &= 2.5\frac{B8-B4}{B8+6B4-7.5B2+1}.
+    \label{eq:sentinel_indices}
+\end{align}
+
+where B2, B4, B5, B8, B8A, B11 are reflectance bands. The reflectance values were divided by 10,000 before the spectral indices calculations were done and any reflectance value of -10,000 was treated as no-data. A small denominator tolerance prevented division by values close to zero for EVI, therefore EVI values outside the interval $-1$ to 1 were removed because the value can become extremely large when its denominator approaches zero. For the CNN models, these index calculations produced spatial channels for the input chip image rather than footprint averages. The same index definitions were also used for the polygon means experiments. Missing raster pixels were kept as \texttt{NaN} rather than being replaced by a meaningful number. This would help simplify the data normalization step where the predictor means and standard deviations were calculated from the finite training pixels only. After normalization, any remaining missing (\texttt{NaN}) pixels were replaced by zero, which represents the training-channel mean in the normalized space. This prevented raw zero from being confused with valid zero FAPAR, spectral index, or crop fraction values.
+
+The crop data had 21 unique crop labels and therefore had to be simplified into few crop channels that represented the main crop categories in the study area. The channels for the input chip were winter wheat, winter barley, winter rye, maize, grass and forage, woody crops, other crops, active crops, and non-crop land. The woody channel combined vineyards with fruit trees and other woody agricultural vegetation, the grass and forage channel combined the grassland and fodder crop classes. Active-crop fraction was made to signify which crop areas had active crop growth during a particular period and therefore its construction depended on both crop class and observation month. For example, winter wheat's main growth period was considered from February to July and again in October and November (next cycle of crops), while maize was active from May to October. The active crop channel was formed by summing the fractions of crop classes whose predefined growth period included the current month. With this active crop channel, we could present crop data in such a way that it represents the seasonal effect of crop growth. The annual crop map remained year specific so that rotations and changes between years were not replaced by one static landcover map.
+
+The month predictor variable (obtained from the SIF observation date) was represented by two spatially constant channels rather than by integers 2 to 7 (February to July, the month interval for this study). For month $m$, the channels were calculated as
+
+\begin{equation}
+    m_{\sin}=\sin\!\left(\frac{2\pi(m-1)}{12}\right),\qquad
+    m_{\cos}=\cos\!\left(\frac{2\pi(m-1)}{12}\right).
+    \label{eq:cyclical_month}
+\end{equation}
+
+This representation places December and January next to each other on a cycle/circle and avoids an artificial large distance between month 12 and month 1, as the characteristics of December is similar January. The main CNN model input chip (using Sentinel-2 as the base dataset) therefore contained 19 channels: five spectral indices, FAPAR, PAR, APAR, seven grouped crop fractions, active-crop fraction, non-crop fraction, and the two month channels. Spatial information in the form of Latitude and longitude were not included as image channels as the SIF data was extremely spatially sparse in a given year and therefore during the external inference testing stage there could have been test samples whose Latitude and Longitude were outside the training range for these two variables. Also excluding them encouraged the model to use environmental and seasonal information rather than directly memorizing OCO-2 SIF track locations (each SIF observation for a date is part of long date track as can be seen in Figure \ref{fig:sif_phase_angle}). During model training, the channel order was written to the dataset configuration and later checked against the model checkpoint during inference. This was important because changing channel order would silently associate trained weights with the wrong predictor. 
+
+
+
+\subsection{Model-Ready Data Representations}
+
+The processed predictor variables were represented differently for tabular, area-to-point and CNN models. For the polygon mean model (tabular data), every SIF observation becomes one tabular row and the mean of predictor channel $c$ was calculated from the pixels intersecting its footprint:
+
+\begin{equation}
+    \bar{x}_{i,c}=
+    \frac{\sum_{p\in i}a_{i,p}x_{p,c}}
+         {\sum_{p\in i}a_{i,p}},
+    \label{eq:polygon_weighted_mean}
+\end{equation}
+
+where $a_{i,p}$ is the fractional area of pixel $p$ inside footprint $i$. Each row in the data table contained one combined SIF target and one value for each spectral index, radiation and crop predictor, each value representing the mean value of the predictor values falling in one SIF footprint. APAR was calculated as mean FAPAR multiplied by mean PAR. The Random Forest and XGBoost models used this table which removed within footprint spatial structure (as the predictors were reduced to one mean value). The single footprint CNN model datasets centred one multi-channel raster chip on each SIF footprint and stored the SIF footprint as a fractional mask. The predicted SIF map (at predictor resolution) was averaged over this mask before comparison with the observed footprint value. The area-to-point MLP model data represented each footprint as a set of no more than 200 spatially distributed Sentinel predictor rows and assigned the same footprint level 740 nm target to those rows. Each OCO-2 footprint at 1km$^2$ contains as many as 2,500 Sentinel-2 pixels (20m). For the sake computational reduction, at most 200 pixels were sampled across the footprint, and their predictor values were given to the MLP. Because no pixel-level SIF observations existed, every sampled pixel shared the footprint’s observed 740 nm SIF value. Its pixel level predictions were then averaged back to the footprint level for comparison to original observation value because real observed 20m SIF labels are unavailable (the best resolution for validation is OCO-2 SIF at 1 km$^2$). Therefore, the area-to-point MLP and MODIS 16 by 16 dataset differed from the principal models in both target wavelength (740nm vs combined SIF target) and filtering.
+
+The Multi-footprint (MultiSIF) model datasets grouped several nearby same-date observations in one predictor chip by the means of density clustering keeping a minium of 4 SIF polygons and max range 10-11 polygons falling in one window, while retaining a separate mask and target for every footprint. The Sentinel-2 version used a 6km by 6km chip at 20m resolution, containing 4-10 footprints and each footprint having at least 90\% of its area falling inside the chip. Its errors were averaged within each chip so that chips containing more footprints did not automatically have greater influence. The Spatial aggregate (4km) model dataset used a different target by assigning same-tile, same-date, and same-mode footprints to fixed 4 km cells containing at least five observations. Each cell had 200 by 200 predictor pixels, and its observed target was
+
+\begin{equation}
+    \bar{S}_g=\frac{1}{n_g}\sum_{i=1}^{n_g}S_i,
+    \label{eq:spatial_aggregate_target}
+\end{equation}
+
+where $n_g$ is the number of assigned footprints and $S_i$ is their observed SIF. For simplicity sake and to keep enough input chips for training purpose, the aggregate weight map gave equal influence to the normalized footprint masks even when their areas inside the chip differed. Since multiple footprints were being averaged down into one value, partial footprint coverage over the chip would not significantly change the accuracy of the overall mean. After this best model (Spatial aggregate (4km)) was selected for further validation, native-footprint inference chips were prepared for two unseen MGRS tiles using the same 4 km context, 20 m grid, and channel order. The resulting 20 m predictions were averaged over each observed footprint mask and compared to the original SIF observation value. It should be noted that these external samples were not used to refit the model or its calibration, they were only used to see if the model's strong training performance could be carried over to external data.
+
+For the yield model dataset, Bavarian NUTS 3 regions were chosen in the selected five MGRS tiles if at least 50\% of their area fell inside an available MGRS tile (Sentinel-2 data is represented in MGRS format), any duplicate tile assignments were removed, one tile was assigned to one NUTS 3 region depending on area overlap. The annual crop type rasters provided the winter wheat pixels spatial location for every retained NUTS 3 region, year and month from March to July. Since the CNN predictor grid was at 20m resolution, wheat map had to be converted to 20m resolution by required all four contributing 10 m crop pixels to be classified as winter wheat. The best model Spatial Aggregate (4km) was used to predict the high resolution SIF map only on the blocks containing these 20m wheat pixels and finally the wheat pixel SIF values were averaged to one crop pure monthly value for each NUTS 3 region. Raw comparison variables were formed from the OCO-2 SIF footprints and from subsets with at least 5\%, 10\%, or 30\% winter-wheat coverage (eg; a SIF footprint has at least 30\% of it's crop area as winter wheat). Footprints were first averaged within the acquisition date and then across the available dates in each month so that dense OCO-2 tracks did not dominate the regional predictor (some date tracks, have more SIF observations than other date tracks). The crop-pure and raw monthly predictor values were reshaped into one row per region and year and joined to official winter wheat yield table. The winter wheat yield table was formed by combining yearly NUTS 3 categorised yield files into one table. The yield unit was converted from decitonnes per hectare to tonnes per hectare so that it could be compared with external studies, and rows without a winter wheat yield (target value) were removed. Missing predictor values were replaced using means calculated from 2019-2022 only, so the held-out 2024 observations did not affect preprocessing. The processed table containing the SIF month wise averages and yield value allowed crop-pure enhanced SIF and mixed raw OCO-2 SIF to be compared using the same regional yield records.
+
+\begin{figure}[p]
+    \centering
+    \rotatebox{90}{%
+        \begin{minipage}{0.92\textheight}
+            \centering
+            \includegraphics[
+                width=\linewidth,
+                keepaspectratio
+            ]{img/unet.pdf}
+            \caption{Three level U-Net architecture for the Spatial Aggregate (4km) model.}
+            \label{fig:unet}
+        \end{minipage}%
+    }
+\end{figure}
+
+\section{Model Architectures}
+
+This section will only discuss the model architectures for the deep learning model experiments. The area-to-point model used a fully connected multilayer perceptron (MLP) that received one 20m predictor row at a time. Each row contained 17 features: Sentinel-2 spectral indices, crop indicators and two cyclical month variables. The input layer was connected to a hidden layer with 64 neurons, followed by a rectified linear unit (ReLU) activation and dropout with a probability of 0.1. A second hidden layer reduced the representation from 64 to 32 neurons and again applied the activation ReLU and dropout. The final linear layer of the MLP model converted the 32 neuron values into one pixel-level SIF estimate. No output activation was used because SIF was treated as a continuous regression target that could include values below zero. The model's MLP weights were applied to every sampled pixel independently, it did not know where the pixel was located relative to other pixels in the footprint or what its neighbouring pixels contained (ie; it has no spatial understanding of how the predicted SIF values are connected in a SIF footprint). Because OCO-2 provides one observed SIF value for the whole footprint rather than separate 20m observations, the model’s pixel-level predictions inside that footprint were averaged to one predicted value. This predicted value was compared with the observed footprint level SIF during training to calculate the necessary performance statistics. Therefore, the model learned pixel-level relationships indirectly from footprint level supervision.
+
+The single footprint and multi footprint CNN experiments used a compact U-Net architecture that preserved the spatial arrangement of the predictor channels. The models using MODIS variables (GLASS products) used two encoder levels with 32 and 64 feature maps, followed by a 128 feature map layer (the deepest representation layer of the model) and this was followed by two decoder levels with 64 and 32 feature maps, matching symmetrically. Each convolutional block contained two $3\times3$ convolutions, and every convolution was followed by batch normalization and a ReLU activation. Likewise the Sentinel-2 multi footprint CNN model (MultiSIF) used the same two-level layout as in single footprint model (MODIS) but started with 16 feature maps, 32 feature maps, and finally 64 feature maps in the deepest layer. Its convolutional blocks used group normalization and the SiLU activation instead of batch normalization and ReLU. This is because the MultiSIF model using Sentinel-2 predictors used small training batches and the 20m resolution image chips were much larger than the MODIS chips and therefore consumed more GPU memory. Batch normalization can become unstable with small batches because it estimates statistics from the current batch whereas group normalization calculates statistics within groups of the feature channels and is therefore less dependent on batch size. SiLU was used because it provided a smooth nonlinear activation and retained small negative responses instead of discarding them completely. In both experiments, $2\times2$ max pooling reduced the spatial dimensions in the encoder section and  $2\times2$ transposed convolutions restored them in the decoder section. Skip connections concatenated the encoder features with the corresponding decoder features which allowed local boundaries and fine spatial patterns to be recovered back after pooling (pooling would condense these fine spatial patterns). Finally, a final $1\times1$ convolution produced one SIF value for every output pixel without applying an output activation. The predicted map was then reduced over either one footprint mask (single footprint model) or several separate footprint masks (multi footprint model).
+
+The best model; Spatial aggregate (4km) used a deeper three-level U-Net compared to a two-level U-Net because its input contained 200 pixels by 200 pixels and could support an additional stage of spatial abstraction without losing too much information. A 200 by 200 output would go from 200, 100, 50, 25 after three pooling operations. The deepest layer still has a meaningful 25 by 25 spatial representation, whereas for the smaller 16 pixels by 16 pixels (single footprint) and 24 pixels by 24 pixels (multi footprint), three pooling stages would grealty compress any meaningful information away. The experiment's 19 predictor channels entered the encoder sections with 16, 32, 64 feature maps and final representation layer with 128 feature maps, the decoder section will reverse this sequence and finally a $1\times1$ output layer restored a single 200 by 200 predicted SIF map. Every block again used two padded $3\times3$ convolutions with group normalization and SiLU activations. Three max-pooling operations reduced the 200 pixels by 200 pixels input successively to 100 by 100, 50 by 50, and 25 by 25 pixels. The model produced a separate predicted SIF value for every 20m pixel in the output map and  during training, the 20 m predictions were combined using the footprint-weight map and compared with the single aggregate target (4km). It should be noted that the 20m outputs are model derived predictions constrained by aggregate observations, rather than independently validated 20m measurements (since real 20m SIF observations do not exist).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[
+        width=\textwidth,
+        keepaspectratio
+    ]{img/mlp.pdf}
+    \caption{Area-to-point Multilayer Perceptron model architecture.}
+    \label{fig:mlp}
+\end{figure}
+
+\section{Model Training and Experimental Design}
+
+Partitioning the model data into train, validation and tests was done before any data normalization, to avoid train statistics from leaking into the validation and test splits. Each model had different methods of partitioning the data (can call this as the partitioning or split unit). Different methods were chosen to see how it affects model performance with the final partitioning unit being used for the Spatial aggregate (4km) model. For the best model; Spatial aggregate (4km), input chips that shared either an OCO-2 acquisition date or a Sentinel-2 product were connected into one component, and these complete components were assigned uniquely to the training, validation or testing splits. This helped prevent the same OCO-2 acquisition date observations or predictor image (chips) from appearing in more than one partition. The components were allocated to an approximate 80/10/10 split by number of chips counts (not exact as it should satisfy the following conditions) while balancing month, measurement mode and MGRS tile composition across the three partitions. The Sentinel-2 multi footprint (MultiSIF) model also used a 80/10/10 split but its data partitioning unit was the complete acquisition date and balancing was done on month and measurement mode, ie; the data partitions contain a balanced distribution of the months and measurement modes. Unlike the  Spatial aggregate (4km) model, this date based split did not prevent the same Sentinel-2 product from occurring in different partitions, so generalisation over MGRS tiles or regions cannot be ascertained fully with this experiment. The MODIS multi footprint model used year wise partitioning, 2019-2022 subset was used for training, 2023 for validation and 2024 for testing. Whereas the MODIS single footprint models used a 70/15/15 random stratification split by state, year and MODIS composite day. The area-to-point MLP model used 70/15/15 split and ensured that all sampled pixels from one SIF footprint remained together in one split. The polygon mean tree models used a date-grouped 80/20 train/test split stratified by month, measurement mode while the yield models used 2019–2022 region-year subset for training and 2024 subset as the test set. All these different methods of data partitioning were used to identify on a base level the ideal data partitioning technique. 
+
+Normalization was done for the predictor variables, and was calculated from the training partition only and then applied unchanged to validation and test data. A random seed of 42 was used for the data partitions and model training procedures. Raster channels were standardized separately, missing raster values were replaced by zero only after standardization as previously mentioned. Fractional footprint and aggregate masks were converted to floating-point values and normalized to sum to one before they were used to reduce a predicted SIF map to its supervised scalar value. For the CNN models, the SIF target were also standardized during optimization and then returned to the original units for evaluation using the following formula
+
+\begin{equation}
+SIF_{\mathrm{standardized},i}
+=
+\frac{SIF_i-\mu_{\mathrm{train}}}
+{\sigma_{\mathrm{train}}},
+\end{equation}
+
+where $\mu_{\mathrm{train}}$ and $\sigma_{\mathrm{train}}$ are the mean and standard deviation of the training targets. This transformation centred the targets near zero and gave them a standard deviation close to one, this helped support a more stable neural-network optimization. After inference, the predicted values were returned to the original SIF units using
+
+\begin{equation}
+\widehat{SIF}_i
+=
+\widehat{SIF}_{\mathrm{standardized},i}
+\sigma_{\mathrm{train}}
++
+\mu_{\mathrm{train}}.
+\end{equation}
+
+It should be noted that the evaluation metrics such as RMSE and MAE were calculated in the original SIF units. The area-to-point MLP in contrast to the CNN models kept its target in the original SIF units. This was a design choice. Since CNN models contain more parameters than the MLP model, standardizing the SIF targets kept the loss and gradients on a consistent scale, and thus made optimization more stable and allowed the same learning settings to work across the various CNN model experiments. The CNN models and MLP model were optimized with AdamW using an initial learning rate of $10^{-3}$ and a weight decay of $10^{-4}$. The CNN models using Sentinel-2 data processes four separate batches of eight chips (each chip is an image with multiple channels), and after each batch is done it calculates the gradients but doesn't update the model weights immediately. Only after all four batches are done are the gradients added together and finally the optimizer updates the weights. This method allows the model to be trained with a larger batch than what the GPU memory can permit, ie; the physical batch size is 8, while the effective batch size is 32. For a chip containing several footprints, the footprint losses were first averaged within the chip and then the chip losses were averaged across the batch. This helped prevent the chips containing more footprints from influencing the model training more greatly than chips containing less number of footprints, ie; avoid footprint count in a chip from influencing the model training performance. Huber loss was used for the models using combined SIF target (\texttt{target\_modis\_sif}) and for area-to-point, while mean squared error was used for the 740nm baseline model. Huber loss was used to stop extreme outliers from affecting the model training greatly. The Random Forest and XGBoost models were trained with fixed configuration settings (min tree depth, min node leaves) so that the comparison focused on the input representation and model family rather than effective hyperparameter search.
+
+All the deep learning network models final model checkpoint were selected using the lowest validation RMSE. Models using Sentinel-2 data used early stopping with patience of seven epochs and also reduced the learning rate of the model when validation RMSE stopped improving. The area-to-point MLP allowed training to up to 150 epochs with patience of 20. The MODIS based models used 30 epochs and retained the checkpoint with the lowest validation RMSE. For most of the CNN models, a linear calibration of observed SIF versus predicted SIF was fitted on the validation predictions only. This was then applied unchanged to the test predictions. Both raw and calibrated metrics were kept so that any improvement caused by this post training adjustment remained visible, see Table \ref{tab:rq2_model_comparison} to see which models chose the calibrated results. The external native footprint inference used the saved Spatial aggregate (4km) model, its training normalization statistics, and its validation derived calibration to centred 4 km windows from two previously unseen MGRS tiles. These 4km windows had 20m SIF maps (4km cause each input chip is 200 pixels by 200 pixels, each pixel 20m resolution) which were averaged over the individual OCO-2 footprint masks and compared with their observed footprint SIF values. Finally the winter wheat yield model used a fixed Random Forest configuration for all crop pure and raw SIF predictor subsets, so that the 2024 test data comparison between the various yield models reflected more of the input data quality rather than any hyperparameter tuning efforts. A more concise view of the experimental settings can be seen in Table~\ref{tab:model-training-settings}.
+
+
+
+
+
+
+
+
+
+\section{Experimental Environment and Reproducibility}
+
+For this study, all data acquisition, preprocessing, spatial matching, raster extraction and model ready data preparation were performed on a local workstation with a 20-core CPU, 32 GB RAM and RTX5070 GPU. For the python processing scripts, Python 3.11.9 in the Positron development environment was used. Python libraries like \texttt{NumPy} and \texttt{pandas} were used for tabular operations, \texttt{Rasterio}, \texttt{GeoPandas}, \texttt{Shapely} and \texttt{pyproj} were used for raster, vector, geometry and coordinate reference system (CRS) operations. For the R processing scripts, R 4.5.2 in the RStudio development environment was used. R libraries, \texttt{terra} and \texttt{sf} provided the main raster and vector functions, the \texttt{future}, \texttt{furrr}, and \texttt{tidyverse} packages provided the necessary parallel and tabular workflow functions. Processing operations that were computationally expensive were made easier to compute by grouping observations by date, product (or tile), cropping rasters before extraction and processing independent groups in parallel where possible. Since the local workstation had 32GB RAM and each Sentinel-2 reflectance band size can vary from 53MB to 230MB, crop type rasters around 450MB, without doing any kind of grouping, cropping the memory costs can easily balloon to over 32GB RAM. Eventhough some serial workflows for the processing could be done in memory with the ungrouped data, to make use of parallel computing, a smaller sized data needed to be made such that it could be fed to each core of the parallel process. All Neural Network training and evaluation were conducted in Kaggle environments which had two NVIDIA T4 GPUs, a four-core Intel Xeon CPU allocation, and 30 GB of RAM, the provided GPUs were better the local workstation's RTX5070 for model training. The Kaggle models used PyTorch 2.10.0 with CUDA 12.8. Training experiment settings like random seeds, data-partition definitions, normalization statistics, chip metadata, prediction tables, and evaluation outputs were stored with the corresponding jupyter notebooks so that each experiment could be redone without regenerating new partitions, normalization statistics for future steps. The Spatial aggregate (4km) model weights, checkpoint, normalization statistics, and channel-order metadata are provided in the following google drive link: \href{https://drive.google.com/drive/folders/15rIHXzmt8EkCWknCuEq3hdD4ILnVenpY?usp=sharing}{Thesis Data Folder}. To enable reproducibility of this thesis workflow, the code is made available in the following GitHub repository: \url{https://github.com/vishalt11/sif-gap-fill}
+
+\begin{table}[p]
+\centering
+\caption[Training and partition settings]{Training and partition settings used in the modelling experiments.}
+\label{tab:model-training-settings}
+\small
+\renewcommand{\arraystretch}{1.15}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l l l l c c c c c}
+\hline
+\textbf{Experiment} & \textbf{Split Unit} & \textbf{Loss} & \textbf{Optimizer} &
+\textbf{Batch} & \textbf{Epochs/trees} & \textbf{LR} &
+\textbf{ES} & \textbf{Calibration} \\
+\hline
+4 km aggregate U-Net & Component 80/10/10 & Huber (1.0) & AdamW & $8\times4$ & 30 & $10^{-3}$ & 7 & Yes \\
+Sentinel-2 multi-SIF U-Net & Date 80/10/10 & Huber (1.0) & AdamW & $8\times4$ & 30 & $10^{-3}$ & 7 & Yes \\
+MODIS multi-SIF U-Net & Year 2019--22/23/24 & Huber (0.5) & AdamW & 128 & 15 & $10^{-3}$ & - & Yes \\
+MODIS single-SIF U-Net & Stratified 70/15/15 & Huber (0.5) & AdamW & 256 & 30 & $10^{-3}$ & - & Yes \\
+MODIS 740 nm baseline & Stratified 70/15/15 & MSE & AdamW & 512 & 30 & $10^{-3}$ & - & No \\
+Area-to-point MLP & Footprint 70/15/15 & Huber (0.1) & AdamW & - & 150 & $10^{-3}$ & 20 & No \\
+Polygon means: XGBoost & Date 80/20 & Squared error & XGBoost & - & 800 & 0.03 & - & No \\
+Polygon means: Random Forest & Date 80/20 & Squared error & RF & - & 700 & - & - & No \\
+Winter-wheat yield RF & Year 2019-22/24 & Squared error & RF & - & 500 & - & - & No \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\section{Evaluation Metrics Application}
+
+This section will describe the performance metrics that were used to evaluate the models and also Huber loss function that was used for the main CNN models training loss function. The residual as shown in Figure \ref{fig:residual_4km_spatial} can be described as $e_i=\widehat{y}_i-y_i$ where $y_i$ denotes the observed SIF or yield value for test sample $i$ and $\widehat{y}_i$ denotes the predicted SIF value or yield value. Residual shows the prediction error for one observation. Positive residual indicates the model over predicted likewise negative value signifies under prediction. Similarly bias error indicates the mean of all residuals and therefore positive and negative values can use the same interpretation. An important point positive and negative residuals can cancel each other, so even if individual errors are large, bias can be near zero. Root mean squared error (RMSE), mean absolute error (MAE), and mean bias error described the predictive error while the coefficient of determination ($R^2$) measured the fraction of observed variation explained by the predictions. An $R^2$ value near one indicates that the model explains a large proportion of the variation in the observed values, while a value below zero means that the predictions perform worse than using the observed mean as a constant estimate ie; as a mean baseline model. Since RMSE depends on the spread of the target, normalized RMSE (NRMSE) was also used when comparing targets at different spatial supports, specifically for the Spatial aggregate model (4km) and multi footprint Sentinel-2 model (MultiSIF) comparison. These model metrics formulas can be seen in Section \ref{sec:eval_metrics}. Huber loss was used the optimization for the main CNN models and the area-to-point MLP model, with the exact transition parameter varying experiment to experiment as shown in Table \ref{tab:model-training-settings}. Huber loss behaves quadratically for small residuals but behaves linearly (linear penalty) for large residuals. This makes model fitting less sensitive to unusually large SIF errors than the mean squared error. Huber loss was used to update the model parameters during training (reduces this loss during training) whereas the metrics RMSE, MAE, bias, $R^2$ where used to report predictive performance metrics on the validation and test data sets.
+
+% \begin{equation}
+% \begin{aligned}
+%     \mathrm{RMSE} &= \sqrt{\frac{1}{n}\sum_{i=1}^{n}\left(\widehat{y}_i-y_i\right)^2}, \\
+%     \mathrm{MAE} &= \frac{1}{n}\sum_{i=1}^{n}\left|\widehat{y}_i-y_i\right|, \\
+%     \mathrm{Bias} &= \frac{1}{n}\sum_{i=1}^{n}\left(\widehat{y}_i-y_i\right), \\
+%     R^2 &= 1-\frac{\sum_{i=1}^{n}\left(y_i-\widehat{y}_i\right)^2}
+%     {\sum_{i=1}^{n}\left(y_i-\overline{y}\right)^2}, \\
+%     \mathrm{NRMSE} &= \frac{\mathrm{RMSE}}{s_y}.
+% \end{aligned}
+% \label{eq:evaluation_metrics}
+% \end{equation}
+
+ 
+
+% The loss can be defined as 
+
+% \begin{equation}
+%     L_{\delta}(e_i)=
+%     \begin{cases}
+%         \dfrac{1}{2}e_i^2, & \text{if } |e_i|\leq\delta, \\
+%         \delta\left(|e_i|-\dfrac{1}{2}\delta\right), & \text{if } |e_i|>\delta.
+%     \end{cases}
+%     \label{eq:huber_loss}
+% \end{equation}
+
+%where $e_i=\widehat{y}_i-y_i$ is the residual and $\delta$ is the transition parameter. 
+
+% \begin{equation}
+% \begin{aligned}
+%     b_1 &=
+%     \frac{\sum_{i=1}^{n}(y_i-\overline{y})(\widehat{y}_i-\overline{\widehat{y}})}
+%     {\sum_{i=1}^{n}(y_i-\overline{y})^2}, \\
+%     b_0 &= \overline{\widehat{y}}-b_1\overline{y}, \\
+%     r &=
+%     \frac{\sum_{i=1}^{n}(y_i-\overline{y})(\widehat{y}_i-\overline{\widehat{y}})}
+%     {\sqrt{\sum_{i=1}^{n}(y_i-\overline{y})^2
+%     \sum_{i=1}^{n}(\widehat{y}_i-\overline{\widehat{y}})^2}}.
+% \end{aligned}
+% \label{eq:agreement_metrics}
+% \end{equation}
+Model performance was also further examined using the following metrics: slope and intercept of the least-squares regression of predicted values on observation values, Pearson's correlation coefficient, and distribution of residuals as seen in Table \ref{tab:rq3_model_comparison}. An ideal model would have a slope near 1, an intercept near 0, a correlation near 1, and residuals narrowly centred around 0. Pearson correlation measures how strongly predicted and observed values change together. The regression slope is noted by $b_1$, intercept of the regression line  $b_0$, Pearson correlation $r$ as seen in Section \ref{sec:eval_metrics}. An ideal model has $b_0=0$, $b_1=1$, zero bias, and small residual spread. Residual stability  was also described by its standard deviation and interquartile range ($Q_{0.75}(e)-Q_{0.25}(e)$) and reported for Spatial aggregate (4km) and MultiSIF Sentinel-2 model, this described the spread and stability of prediction errors. For the Spatial aggregate (4km) model, predictor importance was estimated by independently permuting each validation channel (each channel of the image chip in the validation set) and checking the increase in RMSE $I_j=\mathrm{RMSE}_{\mathrm{perm}(j)}-\mathrm{RMSE}_{\mathrm{base}}$, with larger positive values indicating greater predictive importance. The core performance metrics as shown above were calculated for SIF value bins, footprint counts, measurement modes, months, years, MGRS tiles, states, and plant hardiness zones to identify differences in model performance among data groups. Relative RMSE reduction of crop-pure SIF against a raw-SIF baseline was calculated as $100(\mathrm{RMSE}_{\mathrm{raw}}-\mathrm{RMSE}_{\mathrm{crop}})/\mathrm{RMSE}_{\mathrm{raw}}$ and was used for comparison of the different yield models. Finally, given the small number of samples in the held-out 2024 test set, paired bootstrap resampling by region was used to quantify uncertainty in the RMSE difference between the crop-pure and raw-SIF yield models. In each bootstrap repetition, the same test regions were sampled with replacement for both models. This allowed for paired comparison. The 2.5th and 97.5th percentiles of the relative RMSE reduction distribution were used to report the 95\% confidence interval.
+
+% Figure rq2.2
+\begin{figure}[p]
+    \centering
+
+    \begin{subfigure}[t]{0.95\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.25\textheight,
+            keepaspectratio
+        ]{\detokenize{img/2_example_predicted_sif_map_and_ndvi_4km_spatial_aggregate.pdf}}
+        \caption{Spatial Aggregate (4km)}
+        \label{fig:example_sif_ndvi_4km}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.95\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.25\textheight,
+            keepaspectratio
+        ]{\detokenize{img/2_example_predicted_sif_map_and_ndvi_multisif.pdf}}
+        \caption{MultiSIF-Sen2}
+        \label{fig:example_sif_ndvi_multisif}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.95\textwidth}
+        \centering
+        \includegraphics[
+            width=\linewidth,
+            height=0.25\textheight,
+            keepaspectratio
+        ]{\detokenize{img/2_example_predicted_sif_map_and_ndvi_xgboost.pdf}}
+        \caption{PolyMean XGBoost}
+        \label{fig:example_sif_ndvi_xgboost}
+    \end{subfigure}
+
+    \caption{Sample 20m enhanced SIF map for select models. The CNN models are able to capture more complex shapes compared to the tree based models which delineate the field structure exactly.}
+    \label{fig:example_predicted_sif_ndvi_comparison}
+\end{figure}
+
+
+%---------------------------------
+
