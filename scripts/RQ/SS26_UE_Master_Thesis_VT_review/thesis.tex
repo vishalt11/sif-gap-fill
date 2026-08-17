@@ -2,7 +2,7 @@
 
 % use this declaration to set specific page margins
 \usepackage[a4paper , lmargin = {2cm} , rmargin = {4.0cm} , tmargin = {2.5cm} , bmargin = {3cm} ]{geometry}
-\usepackage[a4paper]{geometry}
+%\usepackage[a4paper]{geometry}
 
 \usepackage[ngerman, english]{babel}
 \usepackage{bibgerm}       		% german references
@@ -26,11 +26,12 @@
 
 % header and footer line - no header & footer line on pages where a new chapter starts
 \pagestyle{scrheadings}
-\ohead{Thesis Title}
+%\ohead{Thesis title}
+\ohead{OCO-2 SIF Enhancement for Crop Yield Prediction}
 \ihead{Vishal Thamizharasan}
 \ofoot[]{\thepage}
 \ifoot{Master Thesis, UE, 2026}
-\author{VT}
+\author{Vishal Thamizharasan}
 
 % set path where images are stored
 \graphicspath{{./img/}}
@@ -86,14 +87,14 @@
     \input{./misc/acronyms}
     \input{./misc/glossary}
     % \clearpage
-    \printglossary[title={Acronyms}, type=\acronymtype, toctitle=List of Acronyms]
-    \printglossary[title=Special Terms, toctitle=List of terms]
+    %\printglossary[title={Acronyms}, type=\acronymtype, toctitle=List of Acronyms]
+    %\printglossary[title=Special Terms, toctitle=List of terms]
 
 		% if you want to provide a glossary with explanations of important terms put it in here
 
     \bibliographystyle{geralpha}
     \bibliography{./bib/manual}
 
-    \input{./misc/annex}
+    %\input{./misc/annex}
 
 \end{document}

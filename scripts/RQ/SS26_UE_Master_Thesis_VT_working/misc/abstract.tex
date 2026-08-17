@@ -8,17 +8,23 @@
 \vspace*{0.5cm}
 
 \noindent
-
-\todo{write a one page abstract - Approximately 20 sentences with importance, background, current state, gap analysis, problem statement, your solution, your methods, your results, and improvement in field being discussed.}
-
-Four sentences of background and importance of this topic.
-
-Four sentences defining the gap analysis (work not done in field) and your problem statement.
-
-Four sentences about the methodology of your work.
-
-Six sentences of Results and significance of your results.
-
-Two sentence summarizing your contribution.
-
-\lipsum[1]
+Monitoring plant photosynthesis across large areas is important for understanding terrestrial carbon uptake and agricultural productivity.
+Solar-induced chlorophyll fluorescence (SIF) is emitted by chlorophyll during photosynthesis and provides a satellite-observable signal related to gross primary production.
+OCO-2 offers relatively fine SIF footprints, but its narrow and widely separated tracks are spatially and temporally incomplete.
+Existing reconstructed or downscaled SIF products are generally available at approximately 500~m or coarser resolution, which limits the isolation of signals from small and irregular German crop fields.
+A method is therefore needed to connect sparse OCO-2 observations with spatially complete, high-resolution predictors and produce SIF estimates for unobserved locations.
+It remains unclear how model architecture and the representation of predictors as tabular summaries or spatial image chips affect prediction accuracy and spatial consistency.
+The effects of spatial aggregation, training-sample density, temporal mismatch, and transfer across agro-climatic conditions also require evaluation.
+A further question is whether crop-pure enhanced SIF provides more useful information for winter-wheat yield prediction than raw mixed-footprint observations.
+This study combined uncertainty-screened OCO-2 SIF at 757 and 771~nm with Sentinel-2 spectral indices, radiation, seasonal, and crop-composition predictors represented on a common 20~m grid for Germany during February--July 2019--2024.
+Random Forest, XGBoost, multilayer perceptron, and U-Net models were evaluated using polygon-mean tabular features, native-footprint image chips, multi-footprint chips, and spatially aggregated targets.
+The selected U-Net was trained on fixed 4~km cells containing at least five same-date OCO-2 observations across nine Sentinel-2 grid tiles and externally evaluated on 2,000 native footprints from two unseen tiles by averaging its 20~m predictions over each footprint.
+For the agricultural experiment, monthly crop-pure SIF from March--July was aggregated by Bavarian NUTS-3 region, and Random Forest yield models trained on 2019--2022 were tested in 2024 against two raw-SIF baselines.
+The 4~km spatial-aggregate U-Net achieved an internal test RMSE of 0.0701 and an $R^2$ of 0.761 on 931 held-out targets.
+External transfer to all 2,000 native footprints produced an RMSE of 0.1701 and an $R^2$ of 0.373, while restriction to the trained SIF range of $[0,0.75)$ reduced RMSE to 0.1434.
+Spatial aggregation reduced target and residual variability and improved normalized RMSE, but it also compressed the target range and removed most negative and very high SIF observations.
+Native-footprint CNN and tree-based models produced broadly similar accuracy, indicating that target construction and spatial support affected numerical performance more strongly than model architecture alone, although CNNs retained an advantage in representing neighbourhood and field-boundary patterns.
+Crop-pure SIF achieved a 2024 yield RMSE of 0.9406~$\mathrm{t\,ha^{-1}}$, compared with 1.0285 and 1.0874~$\mathrm{t\,ha^{-1}}$ for raw footprints containing at least 5\% wheat and all raw footprints, corresponding to reductions of 8.5\% and 13.5\%, respectively.
+Nevertheless, the yield-model $R^2$ remained negative and both 95\% bootstrap intervals crossed zero, so the crop-pure advantage is preliminary rather than statistically conclusive.
+The thesis contributes a reproducible framework that performs OCO-2 gap filling and resolution enhancement without requiring a spatially complete parent SIF observation, while treating its 20~m outputs as model-derived estimates validated only at aggregate or native-footprint support.
+It further provides evidence that crop-specific SIF isolation is a promising direction for agricultural monitoring and identifies denser SIF sampling, closer temporal alignment, independent fine-resolution validation, and larger yield datasets as priorities for future work.
