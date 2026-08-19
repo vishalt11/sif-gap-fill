@@ -1,0 +1,24 @@
+\thispagestyle{empty}
+\vspace*{0.2cm}
+
+\begin{center}
+    \textbf{Zusammenfassung}
+\end{center}
+
+\vspace*{0.2cm}
+
+\noindent 
+
+\noindent
+Die großräumige Überwachung der pflanzlichen Photosynthese ist wichtig, um die regionale Kohlenstoffaufnahme und landwirtschaftliche Produktivität zu bestimmen.
+Die solarinduzierte Chlorophyllfluoreszenz (SIF) ist eine schwache Lichtemission des Chlorophylls während der Photosynthese und ein fernerkundlich beobachtbares Signal mit Bezug zur Bruttoprimärproduktion.
+Der OCO-2-Satellit der NASA liefert derzeit die räumlich höchstaufgelösten SIF-Daten, jedoch mit lückenhafter räumlicher und zeitlicher Abdeckung.
+Bestehende verbesserte SIF-Produkte erreichen lediglich etwa 500~m Auflösung und eignen sich daher nur eingeschränkt zur Isolierung kulturartenreiner Signale in kleinen, unregelmäßig geformten deutschen Ackerflächen.
+Benötigt wird deshalb ein deutlich höher aufgelöstes SIF-Produkt auf Grundlage räumlich und zeitlich vollständiger Prädiktoren, insbesondere aus Sentinel-2-Daten.
+Unklar ist, wie Modellarchitektur und Prädiktordarstellung als mittelwertaggregierte Tabellenwerte oder räumliche Bilddaten die Genauigkeit und räumliche Konsistenz innerhalb desselben Untersuchungsrahmens beeinflussen.
+Zu untersuchen sind außerdem die Auswirkungen von Aggregation, Stichprobendichte, zeitlicher Abweichung zwischen SIF und Prädiktoren sowie agroklimatischer Variation.
+Die Studie prüft zudem, ob kulturartenreines verbessertes SIF für die Winterweizen-Ertragsvorhersage nützlicher ist als SIF aus gemischten Footprints. Qualitätsgefilterte OCO-2-Messungen bei 757 und 771~nm wurden kombiniert und mithilfe von Sentinel-2-Spektralindizes mit 20~m Auflösung sowie Strahlungs-, Saison- und Kulturzusammensetzungsvariablen für Deutschland von Februar bis Juli 2019--2024 modelliert.
+Verglichen wurden Random Forest, XGBoost und bildbasierte U-Nets.
+Das beste U-Net wurde mit festen 4-km-Rasterzellen trainiert, die mindestens fünf taggleiche OCO-2-Beobachtungen aus neun deutschen MGRS-Tiles enthielten. Die externe Bewertung erfolgte anhand von 2.000 nativen OCO-2-Footprints aus zwei zuvor nicht verwendeten Tiles. Das Ertragsexperiment nutzte Daten von 2019--2022 zum Training und bewertete 48 bayerische NUTS-3-Regionen im Jahr 2024. Das räumlich aggregierte 4-km-U-Net erzielte intern einen RMSE-Wert von 0.0701 und ein $R^2$ von 0.761.
+Die externe Bewertung innerhalb des trainierten SIF-Wertebereichs ergab auf nativer Footprint-Ebene einen RMSE-Wert von 0.1434 und ein $R^2$ von 0.349. Diese Leistung war weitgehend mit modernen SIF-Enhancement-Methoden vergleichbar, obwohl Unterschiede in Datensätzen, Untersuchungsgebieten und Validierungsgrundlagen einen direkten Vergleich einschränken.
+CNN- und baumbasierte Modelle erzielten auf Footprint-Ebene ähnliche Kennzahlen, sodass Zielkonstruktion und räumliche Bezugsfläche einflussreicher als die Modellarchitektur waren. CNNs konnten jedoch Nachbarschaftsstrukturen und Feldgrenzen besser abbilden. Kulturartenreines SIF erreichte 2024 einen Ertrags-RMSE von 0.9406~$\mathrm{t\,ha^{-1}}$, gegenüber 1.0285--1.0874~$\mathrm{t\,ha^{-1}}$ für gemischte SIF-Footprints. Dies entspricht RMSE-Reduktionen von 8.5\% beziehungsweise 13.5\%. Das Ertragsexperiment bewertet jedoch nur den Einfluss der SIF-Reinheit und nicht die allgemeine Vorhersagegüte. Die Arbeit stellt einen reproduzierbaren Ansatz zur Lückenfüllung und Auflösungsverbesserung von OCO-2-SIF bereit, der keine räumlich vollständige SIF-Ausgangsbeobachtung benötigt. Die erzeugten 20-m-Werte werden als modellbasierte Vorhersagen behandelt und auf nativer OCO-2-Footprint-Ebene validiert. Die Ergebnisse liefern erste Hinweise auf den Nutzen kulturartenspezifischer SIF-Signale für die landwirtschaftliche Ertragsüberwachung und zeigen Schwerpunkte für die Weiterentwicklung des Ansatzes auf.
