@@ -6,15 +6,12 @@ scripts/pro_env
 scripts/tmp	
 scripts/config.json
 scripts/pygeodes-config.json
-scripts/kaggle_scripts
 scripts/__pycache__/
 pygeodes-config.json
 config.json
 scripts/quickstart.ipynb
 tmp
 temp
-sen2_processing
-modis_processing
 eda_images/area_to_point_sif_row_filters
 eda_images/crop_type
 eda_images/stat
