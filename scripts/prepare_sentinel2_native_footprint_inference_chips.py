@@ -8,6 +8,9 @@ predictor chip at 20 m resolution:
   footprint_mask:    [200, 200], fractional coverage stored as float16
   observed_sif:      scalar target_modis_sif, stored as float32
 
+The uncertainty of each combined, daily-corrected SIF observation and its
+components are retained in chip_metadata.csv for uncertainty-aware evaluation.
+
 Only footprints whose centroids fall within the inner 99.8 km square of their
 109.8 km Sentinel product tile are eligible. This removes a 5 km border on all
 sides, ensuring that the centred 4 km chip remains inside the source raster.
@@ -39,7 +42,7 @@ import prepare_sentinel2_multisif_cnn_chips as sentinel
 # Config
 
 SIF_CSV_PATH = Path(
-    "data/main_sif_data/2tiles_2_7_M01_QF01_inoutrange_PARrm.csv"
+    "data/main_sif_data/2tiles_2_7_M01_QF01_inoutrange_PARrm_uncertainty.csv"
 )
 MGRS_REFERENCE_DIR = Path("data/temp_data/mgrs_tifs")
 
@@ -49,6 +52,15 @@ OUTPUT_DIR = Path(
 )
 
 TARGET_COLUMN = "target_modis_sif"
+OBSERVATION_UNCERTAINTY_COLUMN = "sigma_target_modis_sif"
+UNCERTAINTY_COLUMNS = (
+    "Science.SIF_Uncertainty_757nm",
+    "Science.SIF_Uncertainty_771nm",
+    "Science.daily_correction_factor",
+    "sigma_757_daily",
+    "sigma_771_daily",
+    OBSERVATION_UNCERTAINTY_COLUMN,
+)
 FINAL_CHECK_COLUMN = "final_check_modis_sif"
 TARGET_TILES = ("T32UQV", "T32UMC")
 
@@ -110,6 +122,14 @@ def normalize_mgrs_tile(value: object) -> str:
     if re.fullmatch(r"T\d{2}[A-Z]{3}", tile) is None:
         raise ValueError(f"Invalid MGRS tile value: {value}")
     return tile
+
+
+def normalize_product_path(value: object) -> str:
+    """Remove a duplicated trailing Sentinel product directory, if present."""
+    path = Path(str(value).strip())
+    while path.name and path.parent.name == path.name:
+        path = path.parent
+    return str(path)
 
 
 def reference_tif_for_tile(tile: str) -> Path:
@@ -242,6 +262,7 @@ def load_candidates() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         df,
         [
             TARGET_COLUMN,
+            *UNCERTAINTY_COLUMNS,
             FINAL_CHECK_COLUMN,
             "Delta_Date",
             "sif_doy",
@@ -265,6 +286,7 @@ def load_candidates() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df = df.copy()
     df["source_csv_row"] = np.arange(1, len(df) + 1, dtype=np.int64)
     df["sif_row_id"] = df["source_csv_row"]
+    df["product_path"] = df["product_path"].map(normalize_product_path)
     df["Delta_Date"] = pd.to_datetime(df["Delta_Date"], errors="raise").dt.date
     df["sif_year"] = pd.to_datetime(df["Delta_Date"]).dt.year.astype(int)
     df["sif_month"] = pd.to_datetime(df["Delta_Date"]).dt.month.astype(int)
@@ -276,6 +298,8 @@ def load_candidates() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         df["Quality_Flag"], errors="raise"
     ).astype(int)
     df[TARGET_COLUMN] = pd.to_numeric(df[TARGET_COLUMN], errors="coerce")
+    for column in UNCERTAINTY_COLUMNS:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
     df["date_align"] = df["date_align"].astype(str).str.strip().str.lower()
     df["mgrs_tile_t"] = df["mgrs_tile"].map(normalize_mgrs_tile)
 
@@ -306,6 +330,21 @@ def load_candidates() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     filter_rows.append(
         {"stage": "accepted_finite_target_tiles_corners", "n_rows": int(len(df))}
     )
+
+    invalid_uncertainty = (
+        ~np.isfinite(df[list(UNCERTAINTY_COLUMNS)].to_numpy(dtype=np.float64))
+        | (df[list(UNCERTAINTY_COLUMNS)].to_numpy(dtype=np.float64) <= 0)
+    ).any(axis=1)
+    if invalid_uncertainty.any():
+        invalid_rows = df.loc[
+            invalid_uncertainty,
+            ["source_csv_row", "mgrs_tile_t", *UNCERTAINTY_COLUMNS],
+        ]
+        raise ValueError(
+            "Accepted target-tile rows contain missing, non-finite or "
+            "non-positive SIF uncertainty values. Example rows:\n"
+            f"{invalid_rows.head(10).to_string(index=False)}"
+        )
 
     tile_references = {tile: reference_grid_for_tile(tile) for tile in TARGET_TILES}
     geometry_rows: list[dict] = []
@@ -490,6 +529,7 @@ def build_sample(row: pd.Series) -> tuple[dict, dict]:
         "fapar_composite_doy": int(fapar_doy),
         "par_date": row["Delta_Date"],
         "observed_sif": float(row[TARGET_COLUMN]),
+        **{column: float(row[column]) for column in UNCERTAINTY_COLUMNS},
         "final_check": str(row[FINAL_CHECK_COLUMN]),
         "state": row.get("state", ""),
         "hzs": row.get("hzs", ""),
@@ -721,6 +761,16 @@ def prepare_chips() -> None:
         "mask_oversample": MASK_OVERSAMPLE,
         "channels": CHANNEL_NAMES,
         "target": TARGET_COLUMN,
+        "observation_uncertainty": OBSERVATION_UNCERTAINTY_COLUMN,
+        "uncertainty_columns": list(UNCERTAINTY_COLUMNS),
+        "uncertainty_storage": "chip_metadata.csv",
+        "uncertainty_interpretation": (
+            "reported one-sigma retrieval uncertainty after daily correction "
+            "and combination of the 757 nm and scaled 771 nm SIF bands"
+        ),
+        "uncertainty_combination_assumption": (
+            "757 nm and 771 nm retrieval errors treated as independent"
+        ),
         "final_check": FINAL_CHECK_COLUMN,
         "predictor_storage_dtype": "float16",
         "mask_storage_dtype": "float16",

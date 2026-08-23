@@ -1862,24 +1862,349 @@ st_write(hzs_zones, "data/hzs_zones.gpkg", delete_dsn = TRUE)
 #-------------------------------------------------------------------------------
 
 df <- read_csv('data/sif_sf_1_12_crop_zonal_19_24.csv')
-df <- readRDS('data/extracted_modis_data/modis_1_12_bin_uncertainity_corrected_raw.rds')
 
 colnames(df)
+
+deg_to_rad <- pi / 180
+rad_to_deg <- 180 / pi
+
+df <- df %>%
+  mutate(
+    # Relative azimuth wrapped to [-180, 180] degrees
+    relative_azimuth = ((SAz - VAz + 180) %% 360) - 180,
+    
+    # Cosine of the angle between surface-to-Sun and
+    # surface-to-sensor vectors
+    phase_cos = (
+      cos(SZA * deg_to_rad) * cos(VZA * deg_to_rad) +
+        sin(SZA * deg_to_rad) * sin(VZA * deg_to_rad) *
+        cos(relative_azimuth * deg_to_rad)
+    ),
+    
+    # Clamp for floating-point safety, then convert to degrees
+    phase_angle = acos(pmax(-1, pmin(1, phase_cos))) * rad_to_deg
+  )
+
+df <- df %>%
+  mutate(
+    signed_phase_angle = if_else(
+      relative_azimuth < 0,
+      -phase_angle,
+      phase_angle
+    )
+  )
+
+summary(df$phase_angle)
 
 
 #-------------------------------------------------------------------------------
 
-df <-  read_csv('data/winter_wheat_yield_model/raw_mixed_sif/nuts3_crop_pure_and_raw_mixed_sif_predictors.csv')
-sort(colSums(is.na(df)))
+library(readr)
+library(dplyr)
+
+source_path <- "data/sif_sf_1_12_crop_zonal_19_24.csv"
+
+external_path <- paste0(
+  "data/main_sif_data/",
+  "2tiles_2_7_M01_QF01_inoutrange_PARrm.csv"
+)
+
+output_path <- paste0(
+  "data/main_sif_data/",
+  "2tiles_2_7_M01_QF01_inoutrange_PARrm_uncertainty.csv"
+)
+
+join_keys <- c(
+  "Delta_Time",
+  "Latitude",
+  "Longitude"
+)
+
+uncertainty_columns <- c(
+  "Science.SIF_Uncertainty_757nm",
+  "Science.SIF_Uncertainty_771nm",
+  "Science.daily_correction_factor"
+)
+
+# Read only the required columns from the large source dataset.
+uncertainty_lookup <- read_csv(
+  source_path,
+  col_select = all_of(c(join_keys, uncertainty_columns)),
+  show_col_types = FALSE
+) %>%
+  mutate(source_uncertainty_match = TRUE)
+
+external_df <- read_csv(
+  external_path,
+  show_col_types = FALSE
+)
+
+# Confirm that each key identifies no more than one source sounding.
+duplicate_keys <- uncertainty_lookup %>%
+  group_by(across(all_of(join_keys))) %>%
+  summarise(source_rows = n(), .groups = "drop") %>%
+  filter(source_rows > 1)
+
+if (nrow(duplicate_keys) > 0) {
+  stop(
+    "The source dataset contains duplicate combinations of ",
+    "Delta_Time, Latitude, and Longitude."
+  )
+}
+
+# Add the uncertainty variables to the external two-tile observations.
+external_uncertainty_df <- external_df %>%
+  left_join(
+    uncertainty_lookup,
+    by = join_keys,
+    relationship = "many-to-one"
+  )
+
+# Check whether every external observation matched a source observation.
+unmatched_rows <- external_uncertainty_df %>%
+  filter(is.na(source_uncertainty_match))
+
+message(
+  "External rows: ", nrow(external_df),
+  "\nMatched rows: ",
+  nrow(external_uncertainty_df) - nrow(unmatched_rows),
+  "\nUnmatched rows: ", nrow(unmatched_rows)
+)
+
+if (nrow(unmatched_rows) > 0) {
+  stop(
+    nrow(unmatched_rows),
+    " external observations could not be matched. ",
+    "Do not save the output until the keys are checked."
+  )
+}
+
+# Convert native retrieval uncertainties to daily-corrected uncertainty.
+# The combined uncertainty assumes independent 757 and 771 nm errors.
+external_uncertainty_df <- external_uncertainty_df %>%
+  mutate(
+    sigma_757_daily =
+      Science.SIF_Uncertainty_757nm *
+      Science.daily_correction_factor,
+    
+    sigma_771_daily =
+      Science.SIF_Uncertainty_771nm *
+      Science.daily_correction_factor,
+    
+    sigma_target_modis_sif =
+      0.5 * sqrt(
+        sigma_757_daily^2 +
+          (1.5 * sigma_771_daily)^2
+      )
+  ) %>%
+  select(-source_uncertainty_match)
+
+stopifnot(nrow(external_uncertainty_df) == nrow(external_df))
+
+write_csv(
+  external_uncertainty_df,
+  output_path
+)
+
+message("Saved: ", output_path)
+
+summary(
+  external_uncertainty_df$sigma_target_modis_sif
+)
+
+#-------------------------------------------------------------------------------
+# attach BKR zones to sif dfs
+
+sif_df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv')
+
+bkr_zones <- st_read("data/boden_klima_raeume/jki_boden_klima_raeume.geojson", quiet = TRUE) %>%
+  dplyr::select(BKR10_ID, BKR_NAME = NAME, geometry) %>%
+  st_make_valid() %>%
+  st_transform(centroid_crs)
+
+sif_bkr_polygons <- sif_df %>%
+  mutate(sif_row_id = row_number(), across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric)) %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+sif_bkr_centroids <- sif_bkr_polygons %>%
+  st_transform(centroid_crs) %>%
+  st_centroid()
+
+sif_bkr_lookup <- sif_bkr_centroids %>%
+  dplyr::select(sif_row_id) %>%
+  st_join(bkr_zones %>% dplyr::select(BKR10_ID, BKR_NAME), join = st_within, left = TRUE) %>%
+  st_drop_geometry() %>%
+  dplyr::select(sif_row_id, BKR10_ID, BKR_NAME)
+
+sif_df_bkr <- sif_df %>%
+  mutate(sif_row_id = row_number()) %>%
+  left_join(sif_bkr_lookup, by = "sif_row_id") %>%
+  arrange(sif_row_id) %>%
+  dplyr::select(-sif_row_id)
+
+write_csv(sif_df_bkr, "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR.csv")
+
+sort(colSums(is.na(sif_df_bkr)))
+
+table(sif_df_bkr$BKR_NAME)
+length(unique(sif_df_bkr$BKR_NAME))
 
 #-------------------------------------------------------------------------------
 
-df <- read_csv('data/tifs/DE_LS_2021/')
+# assign land cover
+
+sif_df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR.csv')
+
+landcover_paths <- tibble(landcover_year = c(2019L, 2020L, 2021L),
+                          landcover_path = file.path("data/landcover", paste0("classification_map_germany_", landcover_year, ".tif")))
+
+land_cover_classes <- c("10" = "forest", "20" = "low vegetation", "30" = "water", "40" = "built-up", "50" = "bare soil", "60" = "agriculture")
+landcover_class_values <- as.integer(names(land_cover_classes))
+landcover_parallel_workers <- 2
+landcover_buffer_cells <- 2
+landcover_chunk_size <- 500
+
+sif_landcover_polygons <- sif_df %>%
+  mutate(sif_row_id = row_number(),
+         sif_date = as.Date(Delta_Date),
+         sif_year = lubridate::year(sif_date),
+         landcover_year = case_when(sif_year == 2019 ~ 2019L, sif_year == 2020 ~ 2020L, sif_year %in% 2021:2024 ~ 2021L),
+         across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric)) %>%
+  left_join(landcover_paths, by = "landcover_year") %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+landcover_buffered_polygon_extent <- function(raster, polygons_same_crs, buffer_cells = 2) {
+  polygons_vect <- terra::vect(st_as_sf(polygons_same_crs))
+  polygon_extent <- terra::ext(polygons_vect)
+  x_buffer <- abs(terra::xres(raster)) * buffer_cells
+  y_buffer <- abs(terra::yres(raster)) * buffer_cells
+  raster_extent <- terra::ext(raster)
+  
+  crop_xmin <- max(terra::xmin(polygon_extent) - x_buffer, terra::xmin(raster_extent))
+  crop_xmax <- min(terra::xmax(polygon_extent) + x_buffer, terra::xmax(raster_extent))
+  crop_ymin <- max(terra::ymin(polygon_extent) - y_buffer, terra::ymin(raster_extent))
+  crop_ymax <- min(terra::ymax(polygon_extent) + y_buffer, terra::ymax(raster_extent))
+  
+  if (crop_xmin >= crop_xmax || crop_ymin >= crop_ymax) {
+    return(NULL)
+  }
+  
+  terra::ext(crop_xmin, crop_xmax, crop_ymin, crop_ymax)
+}
+
+landcover_crop_to_polygon_extent <- function(raster, polygons_same_crs, buffer_cells = 2) {
+  crop_extent <- landcover_buffered_polygon_extent(raster, polygons_same_crs, buffer_cells = buffer_cells)
+  
+  if (is.null(crop_extent)) {
+    return(NULL)
+  }
+  
+  tryCatch(
+    terra::crop(raster, crop_extent),
+    error = function(e) {
+      warning("Landcover raster crop failed; using full raster. Error: ", conditionMessage(e))
+      raster
+    }
+  )
+}
+
+extract_majority_land_cover <- function(landcover_r, sif_group_raster_crs) {
+  if (is.null(landcover_r) || nrow(sif_group_raster_crs) == 0) {
+    return(tibble(sif_row_id = integer(), land_cover = integer()))
+  }
+  
+  landcover_counts <- terra::extract(landcover_r, terra::vect(sif_group_raster_crs), fun = "table", na.rm = TRUE, ID = TRUE) %>%
+    as_tibble() %>%
+    mutate(ID = as.integer(ID))
+  
+  landcover_count_values <- suppressWarnings(as.integer(str_extract(names(landcover_counts), "[0-9]+$")))
+  class_columns <- names(landcover_counts)[landcover_count_values %in% landcover_class_values]
+  class_values_present <- landcover_count_values[landcover_count_values %in% landcover_class_values]
+  class_order <- order(class_values_present)
+  class_columns <- class_columns[class_order]
+  class_values_present <- class_values_present[class_order]
+  
+  if (length(class_columns) == 0) {
+    stop("No expected land-cover classes were returned by terra::extract().")
+  }
+  
+  landcover_counts <- tibble(ID = seq_len(nrow(sif_group_raster_crs))) %>%
+    left_join(landcover_counts, by = "ID")
+  class_count_matrix <- as.matrix(landcover_counts[, class_columns, drop = FALSE])
+  class_count_matrix[is.na(class_count_matrix)] <- 0
+  majority_column <- max.col(class_count_matrix, ties.method = "first")
+  has_land_cover <- rowSums(class_count_matrix) > 0
+  
+  tibble(sif_row_id = sif_group_raster_crs$sif_row_id[landcover_counts$ID],
+         land_cover = if_else(has_land_cover, class_values_present[majority_column], NA_integer_))
+}
+
+sif_landcover_jobs <- sif_landcover_polygons %>%
+  filter(!is.na(landcover_year), !is.na(landcover_path)) %>%
+  arrange(landcover_year, mgrs_tile, Latitude, Longitude, sif_row_id) %>%
+  group_by(landcover_year, mgrs_tile) %>%
+  mutate(landcover_chunk_id = ceiling(row_number() / landcover_chunk_size)) %>%
+  ungroup() %>%
+  dplyr::select(sif_row_id, landcover_year, landcover_path, mgrs_tile, landcover_chunk_id) %>%
+  group_by(landcover_year, landcover_path, mgrs_tile, landcover_chunk_id) %>%
+  group_split(.keep = TRUE)
+
+sif_landcover_lookup <- local({
+  landcover_old_plan <- future::plan()
+  on.exit(future::plan(landcover_old_plan), add = TRUE)
+  future::plan(future::multisession, workers = landcover_parallel_workers)
+  landcover_result <- NULL
+  
+  progressr::with_progress({
+    landcover_progress <- progressr::progressor(steps = length(sif_landcover_jobs))
+    landcover_result <- furrr::future_map_dfr(sif_landcover_jobs, function(sif_group) {
+      target_landcover_year <- first(sif_group$landcover_year)
+      target_landcover_path <- first(sif_group$landcover_path)
+      target_mgrs_tile <- first(sif_group$mgrs_tile)
+      target_chunk_id <- first(sif_group$landcover_chunk_id)
+      landcover_r <- terra::rast(target_landcover_path)
+      sif_group_raster_crs <- sif_group %>%
+        dplyr::select(sif_row_id) %>%
+        st_transform(st_crs(terra::crs(landcover_r)))
+      landcover_r_crop <- landcover_crop_to_polygon_extent(landcover_r, sif_group_raster_crs, buffer_cells = landcover_buffer_cells)
+      chunk_result <- extract_majority_land_cover(landcover_r_crop, sif_group_raster_crs)
+      landcover_progress(message = paste(target_landcover_year, target_mgrs_tile, "chunk", target_chunk_id))
+      chunk_result
+    }, .options = furrr::furrr_options(seed = TRUE, scheduling = 2))
+  })
+  
+  landcover_result
+})
+
+sif_df_landcover <- sif_df %>%
+  mutate(sif_row_id = row_number()) %>%
+  left_join(sif_landcover_lookup, by = "sif_row_id") %>%
+  arrange(sif_row_id) %>%
+  dplyr::select(-sif_row_id)
+
+sif_df_landcover[is.na(sif_df_landcover$land_cover),]$land_cover <- 40
+
+sif_df_landcover <- sif_df_landcover %>%
+  mutate(land_cover_class = land_cover_classes[as.character(land_cover)])
+
+write_csv(sif_df_landcover, "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR_landcover.csv")
+
+sif_df_landcover %>%
+  count(land_cover, name = "n") %>%
+  mutate(land_cover_class = land_cover_classes[as.character(land_cover)])
 
 
+colSums(is.na(sif_df_landcover))
 
-colnames(df)
+#-------------------------------------------------------------------------------
 
+sif_df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR_landcover.csv')
+
+colnames(sif_df)
 
 
 

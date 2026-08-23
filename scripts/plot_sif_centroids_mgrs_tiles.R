@@ -272,3 +272,136 @@ sif_value_plot <- ggplot() +
 phase_sif_plot <- patchwork::wrap_plots(phase_angle_plot, sif_value_plot, ncol = 2)
 ggsave("eda_images/pdf/sif_phase_angle_and_value_satellite_2022-05-07.pdf", plot = phase_sif_plot, width = 16, height = 8, units = "in")
 
+
+#-------------------------------------------------------------------------------
+
+# plot BKR zones
+
+bkr_path <- "data/boden_klima_raeume/jki_boden_klima_raeume.geojson"
+bkr_output_path <- "eda_images/pdf/germany_boden_klima_raeume.pdf"
+
+# EPSG:3035 provides a common projected CRS for clipping, label placement,
+# and plotting across Germany.
+germany_states_3035 <- germany_states %>%
+  st_transform(3035) %>%
+  st_make_valid()
+
+germany_outline_3035 <- germany_states_3035 %>%
+  st_union()
+
+bkr_3035 <- st_read(bkr_path, quiet = TRUE) %>%
+  select(BKR10_ID, NAME) %>%
+  st_make_valid() %>%
+  st_transform(3035) %>%
+  # Remove any small portions extending beyond the Germany boundary layer.
+  st_intersection(germany_outline_3035) %>%
+  mutate(
+    BKR10_ID = as.integer(BKR10_ID)
+  ) %>%
+  arrange(BKR10_ID)
+
+if (nrow(bkr_3035) == 0) {
+  stop("No BKR polygons intersected the Germany boundary.")
+}
+
+# Fixed categorical colours based on the supplied JKI BKR legend. BKR IDs are
+# nominal categories, so the colours intentionally do not form a gradient.
+bkr_colors <- c(
+  "101" = "#D9C7A3", "102" = "#80CDB7", "104" = "#FFF9A6",
+  "105" = "#8B009E", "106" = "#858585", "107" = "#D79A98",
+  "108" = "#A9CF98", "109" = "#D9D9D9", "111" = "#79A4CF",
+  "112" = "#AA82CD", "113" = "#50B8A4", "114" = "#8A7650",
+  "115" = "#648C43", "116" = "#D3AB61", "117" = "#3F4A91",
+  "120" = "#F0161D", "121" = "#DCA5C7", "122" = "#F7E7AF",
+  "123" = "#76C85B", "127" = "#B30E15", "128" = "#999999",
+  "129" = "#FFF45B", "130" = "#FFF9A4", "132" = "#D95F58",
+  "133" = "#B7370F", "134" = "#4E8E3C", "141" = "#845095",
+  "142" = "#FF7C7B", "143" = "#5ED0E5", "145" = "#86B400",
+  "146" = "#67BE29", "147" = "#DE8944", "148" = "#E3EC00",
+  "150" = "#414D98", "151" = "#B8783F", "152" = "#FFF36A",
+  "153" = "#D5DB94", "154" = "#A655CB", "155" = "#FF9900",
+  "156" = "#9DBDDE", "157" = "#64853C", "158" = "#FF6C72",
+  "191" = "grey90", "192" = "grey60", "193" = "grey95",
+  "194" = "grey80", "195" = "grey50", "196" = "grey40",
+  "198" = "grey70", "199" = "#FAFAFA"
+)
+
+bkr_legend_lookup <- bkr_3035 %>%
+  st_drop_geometry() %>%
+  distinct(BKR10_ID, NAME) %>%
+  arrange(BKR10_ID) %>%
+  mutate(legend_label = paste(BKR10_ID, NAME, sep = " - "))
+
+missing_bkr_colors <- setdiff(
+  as.character(bkr_legend_lookup$BKR10_ID),
+  names(bkr_colors)
+)
+
+if (length(missing_bkr_colors) > 0) {
+  stop(
+    "No categorical colour was defined for BKR ID(s): ",
+    paste(missing_bkr_colors, collapse = ", ")
+  )
+}
+
+bkr_legend_levels <- bkr_legend_lookup$legend_label
+bkr_fill_values <- setNames(
+  unname(bkr_colors[as.character(bkr_legend_lookup$BKR10_ID)]),
+  bkr_legend_levels
+)
+
+bkr_3035 <- bkr_3035 %>%
+  mutate(
+    bkr_legend = factor(
+      paste(BKR10_ID, NAME, sep = " - "),
+      levels = bkr_legend_levels
+    )
+  )
+
+# Place the official BKR identifier inside each polygon. The full descriptive
+# zone name remains available in bkr_3035$NAME for spatial joins and tables.
+bkr_labels_3035 <- bkr_3035 %>%
+  st_point_on_surface()
+
+bkr_plot <- ggplot() +
+  geom_sf(
+    data = bkr_3035,
+    aes(fill = bkr_legend),
+    color = "grey35",
+    linewidth = 0.18
+  ) +
+  geom_sf(
+    data = germany_states_3035,
+    fill = NA,
+    color = "grey25",
+    linewidth = 0.25
+  ) +
+  geom_sf_text(
+    data = bkr_labels_3035,
+    aes(label = BKR10_ID),
+    size = 2.1,
+    color = "black",
+    check_overlap = TRUE
+  ) +
+  scale_fill_manual(
+    values = bkr_fill_values,
+    breaks = bkr_legend_levels,
+    name = NULL,
+    drop = FALSE,
+    guide = "none"
+  ) +
+  coord_sf(xlim = c(3990000, 4720000), ylim = c(2630000, 3610000), crs = st_crs(3035), datum = NA, expand = FALSE) +
+  theme_void() +
+  theme(legend.position = "none", plot.margin = margin(5, 0.3, 5, 0.3))
+
+dir.create(dirname(bkr_output_path), recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  bkr_output_path,
+  plot = bkr_plot,
+  width = 8,
+  height = 10.5,
+  units = "in"
+)
+
+
+
