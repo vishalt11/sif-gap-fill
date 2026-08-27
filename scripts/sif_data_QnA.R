@@ -1,7 +1,5 @@
 library(tidyverse)
 library(sf)
-
-
 library(giscoR)
 library(terra)
 library(leaflet)
@@ -2207,7 +2205,133 @@ sif_df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR_
 colnames(sif_df)
 
 
+#-------------------------------------------------------------------------------
+
+sif_df <- read_csv('data/sif_sf_1_12_crop_zonal_19_24.csv')
+
+#757 correction
+sif_df <- sif_df %>%
+  mutate(
+    sigma_757_daily = Science.SIF_Uncertainty_757nm * Science.daily_correction_factor,
+    
+    neg_status_757 = case_when(
+      Daily_SIF_757nm + 2 * sigma_757_daily >= 0 ~ "accept",
+      Daily_SIF_757nm + 2 * sigma_757_daily < 0 &
+        Daily_SIF_757nm + 3 * sigma_757_daily >= 0 ~ "questionable",
+      Daily_SIF_757nm + 3 * sigma_757_daily < 0 ~ "reject"
+    )
+  )
+
+#771 correction
+sif_df <- sif_df %>%
+  mutate(
+    sigma_771_daily = Science.SIF_Uncertainty_771nm * Science.daily_correction_factor,
+    
+    neg_status_771 = case_when(
+      Daily_SIF_771nm + 2 * sigma_771_daily >= 0 ~ "accept",
+      Daily_SIF_771nm + 2 * sigma_771_daily < 0 &
+        Daily_SIF_771nm + 3 * sigma_771_daily >= 0 ~ "questionable",
+      Daily_SIF_771nm + 3 * sigma_771_daily < 0 ~ "reject"
+    )
+  )
+
+# modis sif (Daily_SIF_757nm + 1.5 * Daily_SIF_771nm) / 2 correction
+sif_df <- sif_df %>%
+  mutate(
+    sigma_757_daily = Science.SIF_Uncertainty_757nm * Science.daily_correction_factor,
+    sigma_771_daily = Science.SIF_Uncertainty_771nm * Science.daily_correction_factor,
+    
+    target_modis_sif = (Daily_SIF_757nm + 1.5 * Daily_SIF_771nm) / 2,
+    
+    sigma_modis_sif = 0.5 * sqrt(sigma_757_daily^2 + (1.5 * sigma_771_daily)^2),
+    
+    neg_status_modis_sif = case_when(
+      target_modis_sif + 2 * sigma_modis_sif >= 0 ~ "accept",
+      target_modis_sif + 2 * sigma_modis_sif < 0 &
+        target_modis_sif + 3 * sigma_modis_sif >= 0 ~ "questionable",
+      target_modis_sif + 3 * sigma_modis_sif < 0 ~ "reject"
+    )
+  )
+
+sif_df <- sif_df %>%
+  mutate(
+    bin_check_757 = if_else(Daily_SIF_757nm >= -2 & Daily_SIF_757nm < 5, "accept", "reject"),
+    bin_check_771 = if_else(Daily_SIF_771nm >= -2 & Daily_SIF_771nm < 5, "accept", "reject"),
+    bin_check_modis_sif = if_else(target_modis_sif >= -2 & target_modis_sif < 5, "accept", "reject"),
+    final_check_757 = if_else(bin_check_757 == "accept" & neg_status_757 == "accept", "accept", "reject"),
+    final_check_771 = if_else(bin_check_771 == "accept" & neg_status_771 == "accept", "accept", "reject"),
+    final_check_modis_sif = if_else(bin_check_modis_sif == "accept" & neg_status_modis_sif == "accept", "accept", "reject")
+  )
+
+summary(sif_df[sif_df$final_check_771 == 'accept',]$Daily_SIF_771nm)
+
+write_csv(sif_df, 'data/sif_sf_1_12_crop_zonal_19_24_target.csv')
+
+sif_breaks <- seq(
+  floor(min(sif_df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
+  ceiling(max(sif_df$Daily_SIF_740nm, na.rm = TRUE) / 0.25) * 0.25,
+  by = 0.25
+)
+
+df_binned <- sif_df %>%
+  mutate(sif_bin = cut(Daily_SIF_740nm, breaks = sif_breaks, include.lowest = TRUE, right = FALSE))
+
+table(df_binned$sif_bin)
+
+table(df_binned[df_binned$sif_bin == '[1.5,1.75)',]$Delta_Date)
 
 
 
+
+summary(sif_df$Daily_SIF_740nm)
+summary(sif_df$Daily_SIF_757nm)
+summary(sif_df$Daily_SIF_771nm)
+
+
+#-------------------------------------------------------------------------------
+
+sif_df <- read_csv('data/sif_sf_1_12_crop_zonal_19_24_target.csv')
+
+unique(sif_df$Delta_Date)
+
+target_sif_dates <- as.Date(c("2024-07-01", "2024-07-04", "2024-07-06"))
+
+sif_polygons_target_dates <- sif_df %>%
+  mutate(Delta_Date = as.Date(Delta_Date),
+         across(all_of(c("target_modis_sif", corner_cols)), as.numeric)) %>%
+  filter(Delta_Date %in% target_sif_dates) %>%
+  mutate(geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid()
+
+sif_target_dates_pal <- leaflet::colorNumeric(palette = viridisLite::viridis(256), domain = sif_polygons_target_dates$target_modis_sif, na.color = "transparent")
+
+sif_target_dates_leaflet <- leaflet(sif_polygons_target_dates) %>%
+  addProviderTiles(providers$Esri.WorldImagery) %>%
+  addPolygons(fillColor = ~sif_target_dates_pal(target_modis_sif), fillOpacity = 0.75,
+              color = ~sif_target_dates_pal(target_modis_sif), opacity = 1, weight = 1,
+              label = ~paste0(Delta_Date, " | SIF: ", round(target_modis_sif, 4))) %>%
+  addLegend(pal = sif_target_dates_pal, values = ~target_modis_sif, title = "Target MODIS SIF", opacity = 0.75)
+
+sif_target_dates_leaflet
+
+htmlwidgets::saveWidget(sif_target_dates_leaflet, "sif_target_dates_leaflet.html", selfcontained = TRUE)
+
+#-------------------------------------------------------------------------------
+
+r <- rast('data/clc_landcover/CLCplus_2018_010m/CLCplus_2018_010m/CLCplus_2018_010m.tif')
+
+set.seed(123)
+
+spatSample(
+  r,
+  size = 1000,
+  method = "random",
+  na.rm = TRUE,
+  as.df = TRUE
+) |>
+  dplyr::distinct()
+
+res(r)
+plot(r)
 

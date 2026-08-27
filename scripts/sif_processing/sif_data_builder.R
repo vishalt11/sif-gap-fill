@@ -203,11 +203,7 @@ final_df <- final_df %>%
     
     # Cosine of the angle between surface-to-Sun and
     # surface-to-sensor vectors
-    phase_cos = (
-      cos(SZA * deg_to_rad) * cos(VZA * deg_to_rad) +
-        sin(SZA * deg_to_rad) * sin(VZA * deg_to_rad) *
-        cos(relative_azimuth * deg_to_rad)
-    ),
+    phase_cos = (cos(SZA * deg_to_rad) * cos(VZA * deg_to_rad) + sin(SZA * deg_to_rad) * sin(VZA * deg_to_rad) * cos(relative_azimuth * deg_to_rad)),
     
     # Clamp for floating-point safety, then convert to degrees
     phase_angle = acos(pmax(-1, pmin(1, phase_cos))) * rad_to_deg
