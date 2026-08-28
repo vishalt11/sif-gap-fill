@@ -2319,7 +2319,7 @@ htmlwidgets::saveWidget(sif_target_dates_leaflet, "sif_target_dates_leaflet.html
 
 #-------------------------------------------------------------------------------
 
-r <- rast('data/clc_landcover/CLCplus_2018_010m/CLCplus_2018_010m/CLCplus_2018_010m.tif')
+r <- rast('data/sentinel2_l2a/s2_density_4000m_T32UPU_20240722_m1_s00481_db002_w001_lc20_target_20240722_pm8d_nearest_clear.tif')
 
 set.seed(123)
 
@@ -2335,3 +2335,10 @@ spatSample(
 res(r)
 plot(r)
 
+#-------------------------------------------------------------------------------
+
+df <- read_csv('data/sentinel2_l2a/sentinel2_l2a_download_manifest.csv')
+
+summary(df$valid_fraction_before_fill)
+
+nrow(df[df$valid_fraction_before_fill < 0.98,])
