@@ -2418,3 +2418,24 @@ sif_df <- sif_df %>%
   mutate(mgrs_tile = paste0("T", stringr::str_remove(mgrs_tile, "^T")))
 
 write_csv(sif_df, 'data/main_sif_data/redtiles_sif_BKR_landcover.csv')
+
+
+#-------------------------------------------------------------------------------
+
+manifest_path <- paste0(
+  "data/density_aggregation/",
+  "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles_mask60_min4/",
+  "density_cluster_4000m_aggregate_manifest.csv"
+)
+
+unique_dates <- readr::read_csv(
+  manifest_path,
+  show_col_types = FALSE
+) %>%
+  dplyr::transmute(Delta_Date = as.Date(Delta_Date)) %>%
+  dplyr::filter(!is.na(Delta_Date)) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Delta_Date)
+
+readr::write_csv(unique_dates, 'data/redtile_sifdates.csv')
+
