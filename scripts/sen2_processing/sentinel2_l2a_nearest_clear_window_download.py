@@ -69,7 +69,7 @@ MANIFEST_PATH = (
     PROJECT_ROOT
     / "data"
     / "density_aggregation"
-    / "sentinel2_spatial_aggregation_density_4000m_landcover_mask60_min4"
+    / "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles_mask60_min4"
     / "density_cluster_4000m_aggregate_manifest.csv"
 )
 OUTPUT_DIR = PROJECT_ROOT / "data" / "sentinel2_l2a"

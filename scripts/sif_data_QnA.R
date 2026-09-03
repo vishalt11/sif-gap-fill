@@ -2013,7 +2013,7 @@ summary(
 #-------------------------------------------------------------------------------
 # attach BKR zones to sif dfs
 
-sif_df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm.csv')
+sif_df <- read_csv('data/main_sif_data/redtiles_sif.csv')
 
 bkr_zones <- st_read("data/boden_klima_raeume/jki_boden_klima_raeume.geojson", quiet = TRUE) %>%
   dplyr::select(BKR10_ID, BKR_NAME = NAME, geometry) %>%
@@ -2042,7 +2042,7 @@ sif_df_bkr <- sif_df %>%
   arrange(sif_row_id) %>%
   dplyr::select(-sif_row_id)
 
-write_csv(sif_df_bkr, "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR.csv")
+write_csv(sif_df_bkr, "data/main_sif_data/redtiles_sif_BKR.csv")
 
 sort(colSums(is.na(sif_df_bkr)))
 
@@ -2053,7 +2053,7 @@ length(unique(sif_df_bkr$BKR_NAME))
 
 # assign land cover
 
-sif_df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR.csv')
+sif_df <- read_csv('data/main_sif_data/redtiles_sif_BKR.csv')
 
 landcover_paths <- tibble(landcover_year = c(2019L, 2020L, 2021L),
                           landcover_path = file.path("data/landcover", paste0("classification_map_germany_", landcover_year, ".tif")))
@@ -2184,12 +2184,12 @@ sif_df_landcover <- sif_df %>%
   arrange(sif_row_id) %>%
   dplyr::select(-sif_row_id)
 
-sif_df_landcover[is.na(sif_df_landcover$land_cover),]$land_cover <- 40
+#sif_df_landcover[is.na(sif_df_landcover$land_cover),]$land_cover <- 40
 
 sif_df_landcover <- sif_df_landcover %>%
   mutate(land_cover_class = land_cover_classes[as.character(land_cover)])
 
-write_csv(sif_df_landcover, "data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR_landcover.csv")
+write_csv(sif_df_landcover, "data/main_sif_data/redtiles_sif_BKR_landcover.csv")
 
 sif_df_landcover %>%
   count(land_cover, name = "n") %>%
@@ -2341,4 +2341,80 @@ df <- read_csv('data/sentinel2_l2a/sentinel2_l2a_download_manifest.csv')
 
 summary(df$valid_fraction_before_fill)
 
-nrow(df[df$valid_fraction_before_fill < 0.98,])
+nrow(df[df$valid_fraction_before_fill < 0.90,])
+
+
+#-------------------------------------------------------------------------------
+
+df <- read_csv('data/main_sif_data/9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR_landcover.csv')
+sif_df <- read_csv('data/main_sif_data/sif_sf_1_12_crop_zonal_19_24_target.csv')
+
+
+sif_df <- sif_df[lubridate::month(sif_df$Delta_Date) %in% 2:7,]
+
+#32UMU, 32UNV, 32UPV, 32UQV, 32UPA, 32UPB, 32UQD, 32UMC, 32UND
+
+mgrs_sf <- readRDS('data/mgrs_de.rds')
+
+new_mgrs_tiles <- c("32UMU", "32UNV", "32UPV", "32UQV", "32UPA", "32UPB", "32UQD", "32UMC", "32UND")
+
+new_mgrs_tiles_sf <- mgrs_sf %>%
+  mutate(mgrs_tile = stringr::str_remove(mgrs_tile, "^T")) %>%
+  filter(mgrs_tile %in% new_mgrs_tiles) %>%
+  dplyr::select(mgrs_tile) %>%
+  st_transform(4326)
+
+new_tiles_sif <- sif_df %>%
+  mutate(across(all_of(c("Latitude", "Longitude", corner_cols)), as.numeric),
+         geometry = pmap(list(Lon_corner1, Lat_corner1, Lon_corner2, Lat_corner2, Lon_corner3, Lat_corner3, Lon_corner4, Lat_corner4), make_sif_polygon)) %>%
+  st_as_sf(crs = 4326) %>%
+  st_make_valid() %>%
+  st_transform(3035) %>%
+  st_centroid() %>%
+  st_transform(4326) %>%
+  st_join(new_mgrs_tiles_sf, join = st_within, left = FALSE)
+
+new_tiles_sif <- new_tiles_sif %>%
+  anti_join(df %>% dplyr::select(Latitude, Longitude, Delta_Time) %>% distinct(), by = c("Latitude", "Longitude", "Delta_Time"))
+
+
+final_sf <- new_tiles_sif %>%
+  dplyr::select(Daily_SIF_757nm, Daily_SIF_771nm, target_modis_sif,
+                final_check_757, final_check_771, final_check_modis_sif,
+                Latitude, Longitude, Delta_Time, Delta_Date,
+                Lat_corner1, Lat_corner2, Lat_corner3, Lat_corner4,
+                Lon_corner1, Lon_corner2, Lon_corner3, Lon_corner4,
+                Metadata.MeasurementMode, Quality_Flag,
+                state, mgrs_tile, SZA, VZA, VAz, SAz)
+
+final_sf <- final_sf %>% sf::st_drop_geometry()
+
+write_csv(final_sf, 'data/main_sif_data/redtiles_sif.csv')
+
+#temporal_low, temporal_high, date_align, sif_doy, phase_angle, signed_phase_angle,
+#product_path, sif_area_km2_evi
+
+#-------------------------------------------------------------------------------
+
+sif_df <- read_csv('data/main_sif_data/redtiles_sif_BKR_landcover.csv')
+
+sif_df <- sif_df %>%
+  mutate(temporal_low = NA,
+         temporal_high = NA,
+         date_align = NA,
+         phase_angle = NA,
+         signed_phase_angle = NA,
+         hzs = NA,
+         product_path = NA,
+         sif_area_km2_evi = NA)
+
+sif_df <- sif_df %>%
+  mutate(Delta_Date = as.Date(Delta_Date),
+         sif_doy = lubridate::yday(Delta_Date))
+
+colnames(sif_df)
+
+sif_df <- sif_df %>%
+  mutate(mgrs_tile = paste0("T", stringr::str_remove(mgrs_tile, "^T")))
+
+write_csv(sif_df, 'data/main_sif_data/redtiles_sif_BKR_landcover.csv')

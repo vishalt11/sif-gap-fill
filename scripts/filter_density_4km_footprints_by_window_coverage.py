@@ -35,11 +35,11 @@ from shapely.ops import transform
 
 INPUT_DIR = Path(
     "data/density_aggregation/"
-    "sentinel2_spatial_aggregation_density_4000m_landcover"
+    "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles"
 )
 OUTPUT_DIR = Path(
     "data/density_aggregation/"
-    "sentinel2_spatial_aggregation_density_4000m_landcover_mask60_min4"
+    "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles_mask60_min4"
 )
 
 INPUT_MANIFEST_PATH = (

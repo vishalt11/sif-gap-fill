@@ -1,5 +1,4 @@
 library(tidyverse)
-library(terra)
 library(sf)
 library(lubridate)
 library(dbscan)
@@ -11,8 +10,8 @@ library(htmlwidgets)
 # DBSCAN is run once per tile/date/mode stratum to identify dense track
 # neighbourhoods. Each neighbourhood is ordered along its principal spatial
 # direction and split with a fast forward chunk scan. Every accepted sample is
-# represented by an explicit 2,000 m x 2,000 m square aligned to the 20 m
-# Sentinel-2 grid. Only footprints belonging to the most frequent land-cover
+# represented by an explicit 4,000 m x 4,000 m square aligned to a 20 m MGRS
+# grid. Only footprints belonging to the most frequent land-cover
 # class inside that square contribute to the aggregate target. All footprints
 # encountered by an accepted square are consumed, which prevents one source
 # sounding from being used in multiple aggregate targets.
@@ -21,23 +20,23 @@ sf::sf_use_s2(FALSE)
 
 input_csv <- paste0(
   "data/main_sif_data/",
-  "9tiles_2_7_M01_QF01_inoutrange_PARrm_BKR_landcover.csv"
+  "redtiles_sif_BKR_landcover.csv"
 )
-mgrs_tif_dir <- "data/temp_data/mgrs_tifs"
-output_dir <- "data/density_aggregation/sentinel2_spatial_aggregation_density_2000m_landcover"
+mgrs_geometry_path <- "data/mgrs_de.rds"
+output_dir <- "data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_redtiles"
 
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-window_size_m <- 2000L
+window_size_m <- 4000L
 half_window_m <- window_size_m / 2
 sentinel_pixel_size_m <- 20L
 window_pixels <- window_size_m / sentinel_pixel_size_m
 
 # eps connects nearby soundings into candidate track neighbourhoods. DBSCAN
-# clusters can be longer than 2 km, so their extents are never used directly as
+# clusters can be longer than 4 km, so their extents are never used directly as
 # modelling windows. The explicit square-window check below controls support.
 dbscan_eps_m <- 1800
-minimum_footprints <- 3L
+minimum_footprints <- 4L
 
 leaflet_sample_groups <- 100L
 leaflet_seed <- 42L
@@ -51,10 +50,6 @@ normalize_mgrs_tile <- function(x) {
   tile <- stringr::str_to_upper(stringr::str_trim(as.character(x)))
   tile <- stringr::str_remove(tile, "^T")
   if_else(is.na(tile) | tile == "", NA_character_, paste0("T", tile))
-}
-
-extract_mgrs_tile_from_path <- function(path) {
-  stringr::str_extract(as.character(path), "T[0-9]{2}[A-Z]{3}")
 }
 
 make_sif_polygon <- function(
@@ -113,78 +108,138 @@ modal_value <- function(x) {
   sort(tied)[[1]]
 }
 
-build_tile_table <- function(tif_dir) {
-  tif_paths <- list.files(tif_dir, pattern = "[.]tif$", full.names = TRUE)
-
-  if (length(tif_paths) == 0) {
-    stop("No Sentinel reference tifs found in: ", tif_dir)
+build_tile_table <- function(mgrs_path, requested_tiles) {
+  if (!file.exists(mgrs_path)) {
+    stop("MGRS geometry file not found: ", mgrs_path)
   }
 
-  tile_table <- map_dfr(tif_paths, function(tif_path) {
-    raster <- terra::rast(tif_path)
-    raster_extent <- terra::ext(raster)
-    raster_resolution <- terra::res(raster)
+  mgrs_all <- readRDS(mgrs_path)
+  if (!inherits(mgrs_all, "sf")) {
+    stop("The MGRS geometry RDS must contain an sf object.")
+  }
+  if (!"mgrs_tile" %in% names(mgrs_all)) {
+    stop("The MGRS geometry object has no mgrs_tile column.")
+  }
+
+  requested_tiles <- sort(unique(na.omit(normalize_mgrs_tile(requested_tiles))))
+  if (length(requested_tiles) == 0) {
+    stop("No valid assigned MGRS tile IDs were found in the SIF data.")
+  }
+
+  mgrs_selected <- mgrs_all %>%
+    mutate(
+      mgrs_tile_original = stringr::str_remove(
+        normalize_mgrs_tile(mgrs_tile),
+        "^T"
+      ),
+      mgrs_tile_t = normalize_mgrs_tile(mgrs_tile)
+    ) %>%
+    filter(mgrs_tile_t %in% requested_tiles)
+
+  missing_tiles <- setdiff(requested_tiles, mgrs_selected$mgrs_tile_t)
+  if (length(missing_tiles) > 0) {
+    stop(
+      "Assigned tiles missing from the MGRS geometry object: ",
+      paste(missing_tiles, collapse = ", ")
+    )
+  }
+
+  duplicate_tiles <- mgrs_selected %>%
+    st_drop_geometry() %>%
+    count(mgrs_tile_t) %>%
+    filter(n != 1L)
+  if (nrow(duplicate_tiles) > 0) {
+    stop("At least one requested MGRS tile has duplicate geometries.")
+  }
+
+  if (!"crs_utm" %in% names(mgrs_selected)) {
+    stop("The MGRS geometry object has no crs_utm column.")
+  }
+
+  tile_crs_values <- mgrs_selected %>%
+    st_drop_geometry() %>%
+    transmute(crs_utm = stringr::str_trim(as.character(crs_utm))) %>%
+    filter(!is.na(crs_utm), crs_utm != "") %>%
+    distinct() %>%
+    pull(crs_utm)
+
+  if (length(tile_crs_values) != 1L) {
+    stop(
+      "All assigned tiles must use one projected CRS for joint clustering; ",
+      "found: ", paste(tile_crs_values, collapse = ", ")
+    )
+  }
+
+  analysis_crs <- st_crs(tile_crs_values[[1]])
+  if (is.na(analysis_crs)) {
+    stop("Could not interpret the assigned tiles' crs_utm value.")
+  }
+
+  tile_boundaries <- mgrs_selected %>%
+    st_make_valid() %>%
+    st_transform(analysis_crs) %>%
+    select(
+      mgrs_tile_original,
+      mgrs_tile_t,
+      any_of(c("grid_zone", "square_100km", "zone", "crs_utm")),
+      geometry
+    ) %>%
+    arrange(mgrs_tile_t)
+
+  tile_table <- map_dfr(seq_len(nrow(tile_boundaries)), function(tile_i) {
+    tile_bbox <- st_bbox(tile_boundaries[tile_i, ])
 
     tibble(
-      mgrs_tile_t = extract_mgrs_tile_from_path(basename(tif_path)),
-      sentinel_tif_path = tif_path,
-      raster_crs = terra::crs(raster),
-      raster_xmin = raster_extent$xmin,
-      raster_xmax = raster_extent$xmax,
-      raster_ymin = raster_extent$ymin,
-      raster_ymax = raster_extent$ymax,
-      xres = raster_resolution[[1]],
-      yres = raster_resolution[[2]],
-      raster_ncol = terra::ncol(raster),
-      raster_nrow = terra::nrow(raster)
+      mgrs_tile_original = tile_boundaries$mgrs_tile_original[[tile_i]],
+      mgrs_tile_t = tile_boundaries$mgrs_tile_t[[tile_i]],
+      window_crs = tile_crs_values[[1]],
+      tile_xmin = unname(tile_bbox[["xmin"]]),
+      tile_xmax = unname(tile_bbox[["xmax"]]),
+      tile_ymin = unname(tile_bbox[["ymin"]]),
+      tile_ymax = unname(tile_bbox[["ymax"]]),
+      grid_xmin = ceiling((unname(tile_bbox[["xmin"]]) - 1e-6) /
+        sentinel_pixel_size_m) * sentinel_pixel_size_m,
+      grid_xmax = floor((unname(tile_bbox[["xmax"]]) + 1e-6) /
+        sentinel_pixel_size_m) * sentinel_pixel_size_m,
+      grid_ymin = ceiling((unname(tile_bbox[["ymin"]]) - 1e-6) /
+        sentinel_pixel_size_m) * sentinel_pixel_size_m,
+      grid_ymax = floor((unname(tile_bbox[["ymax"]]) + 1e-6) /
+        sentinel_pixel_size_m) * sentinel_pixel_size_m
     )
-  }) %>%
-    filter(!is.na(mgrs_tile_t)) %>%
-    arrange(mgrs_tile_t, sentinel_tif_path) %>%
-    distinct(mgrs_tile_t, .keep_all = TRUE)
+  })
 
-  if (nrow(tile_table) == 0) {
-    stop("Could not extract MGRS tile IDs from the reference tif names.")
+  if (any(tile_table$grid_xmax - tile_table$grid_xmin < window_size_m) ||
+      any(tile_table$grid_ymax - tile_table$grid_ymin < window_size_m)) {
+    stop("At least one assigned MGRS tile is smaller than the 4 km window.")
   }
 
-  reference_crs <- st_crs(tile_table$raster_crs[[1]])
-  same_crs <- map_lgl(tile_table$raster_crs, ~ st_crs(.x) == reference_crs)
-
-  if (!all(same_crs)) {
-    stop("Sentinel reference tifs do not all use the same CRS.")
-  }
-  if (any(abs(tile_table$xres - sentinel_pixel_size_m) > 1e-8) ||
-      any(abs(tile_table$yres - sentinel_pixel_size_m) > 1e-8)) {
-    stop("Expected every Sentinel reference tif to use 20 m pixels.")
-  }
-  if (any(tile_table$raster_xmax - tile_table$raster_xmin < window_size_m) ||
-      any(tile_table$raster_ymax - tile_table$raster_ymin < window_size_m)) {
-    stop("At least one Sentinel reference tif is smaller than 2 km.")
-  }
-
-  list(table = tile_table, crs = reference_crs)
+  list(
+    table = tile_table,
+    boundaries = tile_boundaries,
+    crs = analysis_crs
+  )
 }
 
-# Snap a candidate square to the reference tile's 20 m grid and, where needed,
-# shift it inward so that the entire 2 km window remains inside the raster.
+# Snap a candidate square to the assigned MGRS tile's 20 m grid and, where
+# needed, shift it inward so the complete 4 km window stays inside the tile.
 snap_window_to_tile <- function(center_x, center_y, tile_row) {
   xmin_raw <- center_x - half_window_m
   ymax_raw <- center_y + half_window_m
 
-  xmin <- tile_row$raster_xmin +
-    round((xmin_raw - tile_row$raster_xmin) / sentinel_pixel_size_m) *
+  xmin <- tile_row$grid_xmin +
+    round((xmin_raw - tile_row$grid_xmin) / sentinel_pixel_size_m) *
       sentinel_pixel_size_m
-  ymax <- tile_row$raster_ymax -
-    round((tile_row$raster_ymax - ymax_raw) / sentinel_pixel_size_m) *
+  ymax <- tile_row$grid_ymax -
+    round((tile_row$grid_ymax - ymax_raw) / sentinel_pixel_size_m) *
       sentinel_pixel_size_m
 
   xmin <- min(
-    max(xmin, tile_row$raster_xmin),
-    tile_row$raster_xmax - window_size_m
+    max(xmin, tile_row$grid_xmin),
+    tile_row$grid_xmax - window_size_m
   )
   ymax <- min(
-    max(ymax, tile_row$raster_ymin + window_size_m),
-    tile_row$raster_ymax
+    max(ymax, tile_row$grid_ymin + window_size_m),
+    tile_row$grid_ymax
   )
 
   tibble(
@@ -237,7 +292,7 @@ add_pca_track_score <- function(cluster_tbl) {
     arrange(track_score, sif_row_id)
 }
 
-# Construct one grid-aligned 2 km window from centroid bounds. A zero-row
+# Construct one grid-aligned 4 km window from centroid bounds. A zero-row
 # result means that the points cannot all fit inside one valid window.
 window_from_bounds <- function(
     xmin, xmax, ymin, ymax, tile_row) {
@@ -262,7 +317,7 @@ window_from_bounds <- function(
 }
 
 # Find the largest leading section of a PCA-ordered track that fits in one
-# 2 km window. Bounds are updated incrementally, so this is linear in the
+# 4 km window. Bounds are updated incrementally, so this is linear in the
 # number of remaining points rather than an all-points-by-all-candidates scan.
 largest_fitting_prefix <- function(ordered_tbl, tile_row) {
   if (nrow(ordered_tbl) < minimum_footprints) {
@@ -323,8 +378,8 @@ cluster_one_dbscan_group <- function(
   while (nrow(remaining) >= minimum_footprints) {
     fit <- largest_fitting_prefix(remaining, tile_row)
 
-    # If the first four PCA-ordered points cannot share one 2 km support,
-    # remove the leading point and retry without rerunning DBSCAN.
+    # If the first minimum-sized PCA-ordered group cannot share one 4 km
+    # support, remove the leading point and retry without rerunning DBSCAN.
     if (fit$n < minimum_footprints) {
       excluded[[length(excluded) + 1L]] <- tibble(
         sif_row_id = remaining$sif_row_id[[1]],
@@ -335,8 +390,8 @@ cluster_one_dbscan_group <- function(
       next
     }
 
-    # Avoid leaving a final one-to-three-point remainder where a smaller first
-    # chunk can leave at least four points for the following window.
+    # Avoid leaving a final undersized remainder where a smaller first chunk
+    # can leave enough points for the following window.
     trailing_n <- nrow(remaining) - fit$n
     if (trailing_n > 0L && trailing_n < minimum_footprints) {
       balanced_n <- fit$n - (minimum_footprints - trailing_n)
@@ -387,7 +442,7 @@ cluster_one_dbscan_group <- function(
     mode_value <- remaining$measurement_mode[[1]]
     land_cover_value <- majority$land_cover[[1]]
     aggregation_id <- paste0(
-      "s2_density_2000m_", tile_string,
+      "s2_density_4000m_", tile_string,
       "_", date_string,
       "_m", mode_value,
       "_s", str_pad(stratum_number, width = 5, pad = "0"),
@@ -442,7 +497,7 @@ cluster_one_dbscan_group <- function(
   if (nrow(remaining) > 0) {
     excluded[[length(excluded) + 1L]] <- tibble(
       sif_row_id = remaining$sif_row_id,
-      exclusion_reason = "density_noise_or_fewer_than_four_majority_footprints",
+      exclusion_reason = "density_noise_or_fewer_than_minimum_footprints",
       related_aggregation_id = NA_character_
     )
   }
@@ -467,7 +522,7 @@ cluster_one_stratum <- function(stratum_tbl, stratum_number) {
       assignments = empty_assignment_table(),
       exclusions = tibble(
         sif_row_id = stratum_tbl$sif_row_id,
-        exclusion_reason = "stratum_fewer_than_four_footprints",
+        exclusion_reason = "stratum_fewer_than_minimum_footprints",
         related_aggregation_id = NA_character_
       )
     ))
@@ -476,8 +531,8 @@ cluster_one_stratum <- function(stratum_tbl, stratum_number) {
   tile_row <- stratum_tbl %>%
     slice(1) %>%
     select(
-      raster_xmin, raster_xmax, raster_ymin, raster_ymax,
-      sentinel_tif_path
+      tile_xmin, tile_xmax, tile_ymin, tile_ymax,
+      grid_xmin, grid_xmax, grid_ymin, grid_ymax
     )
 
   coordinates <- as.matrix(
@@ -537,18 +592,8 @@ cluster_one_stratum <- function(stratum_tbl, stratum_number) {
 }
 
 if (window_size_m %% sentinel_pixel_size_m != 0) {
-  stop("The 2 km window must contain an integer number of 20 m pixels.")
+  stop("The 4 km window must contain an integer number of 20 m pixels.")
 }
-
-message("Reading Sentinel reference tifs...")
-tile_result <- build_tile_table(mgrs_tif_dir)
-tile_info <- tile_result$table
-sentinel_crs <- tile_result$crs
-
-write_csv(
-  tile_info,
-  file.path(output_dir, "density_2000m_tile_reference.csv")
-)
 
 message("Reading SIF rows: ", input_csv)
 df <- read_csv(
@@ -562,8 +607,8 @@ df <- read_csv(
 
 required_cols <- c(
   "Delta_Date", "Metadata.MeasurementMode", "target_modis_sif",
-  "final_check_modis_sif", "Quality_Flag", "date_align", "mgrs_tile",
-  "product_path", "BKR10_ID", "BKR_NAME", "land_cover",
+  "final_check_modis_sif", "Quality_Flag", "mgrs_tile",
+  "BKR10_ID", "BKR_NAME", "land_cover",
   "land_cover_class", corner_cols
 )
 missing_cols <- setdiff(required_cols, names(df))
@@ -583,25 +628,12 @@ df_prepared <- df %>%
     sif_doy = yday(Delta_Date),
     measurement_mode = as.integer(.data[["Metadata.MeasurementMode"]]),
     Quality_Flag = as.integer(Quality_Flag),
-    date_align = stringr::str_to_lower(
-      stringr::str_trim(as.character(date_align))
-    ),
     target_modis_sif = as.numeric(target_modis_sif),
     mgrs_tile_original = stringr::str_remove(
       normalize_mgrs_tile(mgrs_tile),
       "^T"
     ),
     mgrs_tile_t = normalize_mgrs_tile(mgrs_tile),
-    sentinel_source_tile_t = extract_mgrs_tile_from_path(product_path),
-    sentinel_source_tile = stringr::str_remove(
-      sentinel_source_tile_t,
-      "^T"
-    ),
-    product_path_exists = file.exists(as.character(product_path)),
-    source_matches_input_tile = case_when(
-      is.na(sentinel_source_tile_t) | is.na(mgrs_tile_t) ~ NA,
-      TRUE ~ sentinel_source_tile_t == mgrs_tile_t
-    ),
     BKR10_ID = as.character(BKR10_ID),
     BKR_NAME = stringr::str_squish(as.character(BKR_NAME)),
     land_cover = as.integer(land_cover),
@@ -614,14 +646,28 @@ df_prepared <- df %>%
     !is.na(Delta_Date),
     !is.na(measurement_mode),
     !is.na(Quality_Flag),
-    date_align %in% c("inrange", "outrange"),
     is.finite(target_modis_sif),
     stringr::str_to_lower(final_check_modis_sif) == "accept",
+    stringr::str_detect(mgrs_tile_t, "^T[0-9]{2}[A-Z]{3}$"),
     !is.na(land_cover),
     !is.na(land_cover_class),
     land_cover_class != "",
     if_all(all_of(corner_cols), ~ is.finite(.x))
   )
+
+message("Reading assigned MGRS tile geometries: ", mgrs_geometry_path)
+tile_result <- build_tile_table(
+  mgrs_geometry_path,
+  df_prepared$mgrs_tile_t
+)
+tile_info <- tile_result$table
+tile_boundaries <- tile_result$boundaries
+analysis_crs <- tile_result$crs
+
+write_csv(
+  tile_info,
+  file.path(output_dir, "density_4000m_mgrs_geometry_reference.csv")
+)
 
 if (!"sif_area_km2_evi" %in% names(df_prepared)) {
   df_prepared$sif_area_km2_evi <- NA_real_
@@ -647,7 +693,7 @@ sif_sf <- df_prepared %>%
   ) %>%
   st_as_sf(crs = 4326) %>%
   st_make_valid() %>%
-  st_transform(sentinel_crs)
+  st_transform(analysis_crs)
 
 sif_centroids <- suppressWarnings(st_centroid(sif_sf))
 centroid_xy <- st_coordinates(sif_centroids)
@@ -657,26 +703,17 @@ sif_sf <- sif_sf %>%
     centroid_x = centroid_xy[, "X"],
     centroid_y = centroid_xy[, "Y"],
     input_tile_available = mgrs_tile_t %in% tile_info$mgrs_tile_t,
-    base_keep_for_grouping =
-      input_tile_available &
-      product_path_exists &
-      coalesce(source_matches_input_tile, FALSE)
+    base_keep_for_grouping = input_tile_available
   )
 
 # -----------------------------------------------------------------------------
 # Remove edge footprints whose polygons are mostly outside their assigned tile.
-# The assigned tile boundary is the Sentinel-2 reference raster extent used for
-# that MGRS tile. A footprint is retained when at least 50% of its polygon area
-# lies inside that boundary. This is calculated before density clustering.
+# The tile ID already assigned to each SIF row is trusted; the matching polygon
+# from mgrs_de.rds supplies only its boundary. A footprint is retained when at
+# least 80% of its polygon area lies inside that boundary. This is calculated
+# before density clustering.
 # -----------------------------------------------------------------------------
-tile_boundaries <- tile_info %>%
-  mutate(
-    geometry = pmap(
-      list(raster_xmin, raster_ymin, raster_xmax, raster_ymax),
-      make_square_polygon
-    )
-  ) %>%
-  st_as_sf(crs = sentinel_crs) %>%
+tile_boundaries <- tile_boundaries %>%
   select(mgrs_tile_t, geometry)
 
 edge_candidates <- sif_sf %>%
@@ -773,19 +810,16 @@ row_audit <- sif_sf %>%
   st_drop_geometry() %>%
   count(
     mgrs_tile_t,
-    sentinel_source_tile_t,
     input_tile_available,
-    product_path_exists,
-    source_matches_input_tile,
     passes_tile_edge_filter,
     keep_for_grouping,
     name = "n_sif_rows"
   ) %>%
-  arrange(mgrs_tile_t, sentinel_source_tile_t)
+  arrange(mgrs_tile_t)
 
 write_csv(
   row_audit,
-  file.path(output_dir, "density_2000m_input_row_audit.csv")
+  file.path(output_dir, "density_4000m_input_row_audit.csv")
 )
 
 study_tbl <- sif_df %>%
@@ -793,19 +827,21 @@ study_tbl <- sif_df %>%
   inner_join(
     tile_info %>%
       select(
-        mgrs_tile_t, sentinel_tif_path,
-        raster_xmin, raster_xmax, raster_ymin, raster_ymax
+        mgrs_tile_t,
+        window_crs,
+        tile_xmin, tile_xmax, tile_ymin, tile_ymax,
+        grid_xmin, grid_xmax, grid_ymin, grid_ymax
       ),
     by = "mgrs_tile_t"
   )
 
 if (nrow(study_tbl) == 0) {
-  stop("No rows remain after tile, product-path and source-tile checks.")
+  stop("No rows remain after the assigned-tile edge filter.")
 }
 
-# A stratum represents one OCO-2 track subset within one Sentinel-2 tile and
-# day. Product path and date alignment are retained as metadata, but they do
-# not split otherwise compatible SIF observations into separate strata.
+# A stratum represents one OCO-2 track subset within one assigned MGRS tile,
+# date and measurement mode. Sentinel products are acquired later for the
+# accepted windows and therefore play no role in this grouping stage.
 strata <- study_tbl %>%
   arrange(
     mgrs_tile_t, Delta_Date, measurement_mode, sif_row_id
@@ -816,7 +852,7 @@ strata <- study_tbl %>%
   group_split(.keep = TRUE)
 
 message(
-  "Running density-centred 2 km aggregation for ",
+  "Running density-centred 4 km aggregation for ",
   length(strata),
   " tile/date/mode strata..."
 )
@@ -861,9 +897,15 @@ group_integrity <- density_assignments_full %>%
     n_dates = n_distinct(Delta_Date),
     n_modes = n_distinct(measurement_mode),
     n_tiles = n_distinct(mgrs_tile_t),
-    n_products = n_distinct(product_path),
-    n_date_align = n_distinct(date_align),
     n_land_covers = n_distinct(land_cover),
+    full_window_size =
+      abs(first(cell_xmax) - first(cell_xmin) - window_size_m) < 1e-8 &&
+      abs(first(cell_ymax) - first(cell_ymin) - window_size_m) < 1e-8,
+    window_inside_tile_bounds =
+      first(cell_xmin) >= first(tile_xmin) &&
+      first(cell_xmax) <= first(tile_xmax) &&
+      first(cell_ymin) >= first(tile_ymin) &&
+      first(cell_ymax) <= first(tile_ymax),
     centroids_inside_window = all(
       centroid_x >= first(cell_xmin) &
         centroid_x < first(cell_xmax) &
@@ -877,8 +919,74 @@ if (any(group_integrity$n_dates != 1) ||
     any(group_integrity$n_modes != 1) ||
     any(group_integrity$n_tiles != 1) ||
     any(group_integrity$n_land_covers != 1) ||
+    any(!group_integrity$full_window_size) ||
+    any(!group_integrity$window_inside_tile_bounds) ||
     any(!group_integrity$centroids_inside_window)) {
   stop("At least one accepted density group failed its integrity checks.")
+}
+
+#---------------------
+group_integrity %>%
+  summarise(
+    bad_dates = sum(n_dates != 1),
+    bad_modes = sum(n_modes != 1),
+    bad_tiles = sum(n_tiles != 1),
+    bad_land_cover = sum(n_land_covers != 1),
+    bad_window_size = sum(!full_window_size),
+    bad_tile_bounds = sum(!window_inside_tile_bounds),
+    bad_centroids = sum(!centroids_inside_window)
+  )
+
+bad_ids <- group_integrity %>%
+  filter(!window_inside_tile_bounds) %>%
+  pull(aggregation_id)
+
+density_assignments_full %>%
+  filter(aggregation_id %in% bad_ids) %>%
+  group_by(aggregation_id, mgrs_tile_t) %>%
+  summarise(
+    left_excess_m   = max(first(tile_xmin) - first(cell_xmin), 0),
+    right_excess_m  = max(first(cell_xmax) - first(tile_xmax), 0),
+    bottom_excess_m = max(first(tile_ymin) - first(cell_ymin), 0),
+    top_excess_m    = max(first(cell_ymax) - first(tile_ymax), 0),
+    .groups = "drop"
+  )
+
+
+# Verify against the actual MGRS polygons as well as their numeric bounds.
+# Windows failing this check are not cropped; the script stops instead.
+window_geometry_checks <- density_assignments_full %>%
+  distinct(
+    aggregation_id, mgrs_tile_t,
+    cell_xmin, cell_ymin, cell_xmax, cell_ymax
+  ) %>%
+  mutate(
+    geometry = pmap(
+      list(cell_xmin, cell_ymin, cell_xmax, cell_ymax),
+      make_square_polygon
+    )
+  ) %>%
+  st_as_sf(crs = analysis_crs) %>%
+  group_by(mgrs_tile_t) %>%
+  group_split(.keep = TRUE) %>%
+  map_dfr(function(tile_windows) {
+    tile_id <- first(tile_windows$mgrs_tile_t)
+    tile_boundary <- tile_boundaries %>%
+      filter(mgrs_tile_t == tile_id)
+
+    tibble(
+      aggregation_id = tile_windows$aggregation_id,
+      window_inside_mgrs_geometry = lengths(
+        st_covered_by(tile_windows, tile_boundary)
+      ) == 1L
+    )
+  })
+
+if (any(!window_geometry_checks$window_inside_mgrs_geometry)) {
+  stop(
+    "At least one complete 4 km window extends beyond its assigned MGRS ",
+    "geometry. No windows were cropped."
+  )
 }
 
 density_manifest <- density_assignments_full %>%
@@ -901,7 +1009,7 @@ density_manifest <- density_assignments_full %>%
     sif_month,
     sif_doy,
     measurement_mode,
-    sentinel_tif_path,
+    window_crs,
     majority_land_cover,
     majority_land_cover_class,
     window_n_all_land_covers,
@@ -939,27 +1047,12 @@ density_manifest <- density_assignments_full %>%
     n_quality_flag_0 = sum(Quality_Flag == 0L),
     n_quality_flag_1 = sum(Quality_Flag == 1L),
     quality_flag_1_fraction = mean(Quality_Flag == 1L),
-    date_align_values = collapse_values(date_align),
-    n_date_inrange = sum(date_align == "inrange"),
-    n_date_outrange = sum(date_align == "outrange"),
-    date_outrange_fraction = mean(date_align == "outrange"),
-    n_sentinel_source_tiles = n_distinct(
-      sentinel_source_tile_t,
-      na.rm = TRUE
-    ),
-    sentinel_source_tiles = collapse_values(sentinel_source_tile_t),
-    n_product_paths = n_distinct(product_path, na.rm = TRUE),
-    product_paths = collapse_values(product_path),
-    all_source_tiles_match_input = all(
-      coalesce(source_matches_input_tile, FALSE)
-    ),
     sif_row_ids = paste(sif_row_id, collapse = ","),
     source_csv_rows = paste(source_csv_row, collapse = ","),
     .groups = "drop"
   ) %>%
   mutate(
-    eligible_n3 = n_footprints >= 3L,
-    #eligible_n4 = n_footprints >= 4L,
+    eligible_n4 = n_footprints >= 4L,
     eligible_n5 = n_footprints >= 5L,
     eligible_n6 = n_footprints >= 6L,
     eligible_n8 = n_footprints >= 8L,
@@ -1009,15 +1102,10 @@ density_assignments <- density_assignments_full %>%
     mgrs_tile,
     mgrs_tile_original,
     mgrs_tile_t,
-    sentinel_source_tile,
-    sentinel_source_tile_t,
-    source_matches_input_tile,
-    sentinel_tif_path,
-    product_path,
+    window_crs,
     target_modis_sif,
     final_check_modis_sif,
     Quality_Flag,
-    date_align,
     BKR10_ID,
     BKR_NAME,
     land_cover,
@@ -1033,15 +1121,15 @@ density_assignments <- density_assignments_full %>%
 
 manifest_path <- file.path(
   output_dir,
-  "density_cluster_2000m_aggregate_manifest.csv"
+  "density_cluster_4000m_aggregate_manifest.csv"
 )
 assignments_path <- file.path(
   output_dir,
-  "density_cluster_2000m_sif_assignments.csv"
+  "density_cluster_4000m_sif_assignments.csv"
 )
 exclusions_path <- file.path(
   output_dir,
-  "density_cluster_2000m_excluded_sif_rows.csv"
+  "density_cluster_4000m_excluded_sif_rows.csv"
 )
 
 write_csv(density_manifest, manifest_path)
@@ -1058,8 +1146,7 @@ count_distribution <- density_manifest %>%
   )
 
 threshold_summary <- tibble(
-  #minimum_n = c(4L, 5L, 6L, 8L, 10L),
-  minimum_n = c(3L, 4L, 5L, 6L, 8L, 10L),
+  minimum_n = c(4L, 5L, 6L, 8L, 10L),
   n_windows = map_int(
     minimum_n,
     ~ sum(density_manifest$n_footprints >= .x)
@@ -1097,15 +1184,15 @@ land_cover_summary <- density_manifest %>%
 
 write_csv(
   count_distribution,
-  file.path(output_dir, "density_cluster_2000m_count_distribution.csv")
+  file.path(output_dir, "density_cluster_4000m_count_distribution.csv")
 )
 write_csv(
   threshold_summary,
-  file.path(output_dir, "density_cluster_2000m_threshold_summary.csv")
+  file.path(output_dir, "density_cluster_4000m_threshold_summary.csv")
 )
 write_csv(
   land_cover_summary,
-  file.path(output_dir, "density_cluster_2000m_land_cover_summary.csv")
+  file.path(output_dir, "density_cluster_4000m_land_cover_summary.csv")
 )
 
 chip_polygons <- density_manifest %>%
@@ -1115,12 +1202,12 @@ chip_polygons <- density_manifest %>%
       make_square_polygon
     )
   ) %>%
-  st_as_sf(crs = sentinel_crs) %>%
+  st_as_sf(crs = analysis_crs) %>%
   st_make_valid()
 
 saveRDS(
   chip_polygons,
-  file.path(output_dir, "density_cluster_2000m_chip_polygons.rds")
+  file.path(output_dir, "density_cluster_4000m_chip_polygons.rds")
 )
 
 # A compact Leaflet preview is written for visual inspection. The plotted SIF
@@ -1194,7 +1281,7 @@ if (nrow(preview_groups) > 0) {
       fillColor = "#F4A582",
       fillOpacity = 0.18,
       popup = ~popup,
-      group = "2 km density windows"
+      group = "4 km density windows"
     ) %>%
     addPolygons(
       data = preview_footprints,
@@ -1207,7 +1294,7 @@ if (nrow(preview_groups) > 0) {
     ) %>%
     addLayersControl(
       overlayGroups = c(
-        "2 km density windows",
+        "4 km density windows",
         "Contributing SIF footprints"
       ),
       options = layersControlOptions(collapsed = FALSE)
@@ -1230,13 +1317,13 @@ if (nrow(preview_groups) > 0) {
 
   saveWidget(
     preview_map,
-    file.path(output_dir, "density_cluster_2000m_leaflet_sample.html"),
+    file.path(output_dir, "density_cluster_4000m_leaflet_sample.html"),
     selfcontained = TRUE
   )
 }
 
 message("Done.")
-message("Accepted 2 km windows: ", nrow(density_manifest))
+message("Accepted 4 km windows: ", nrow(density_manifest))
 message("Assigned majority-class footprints: ", nrow(density_assignments))
 message("Excluded or unassigned footprints: ", nrow(density_exclusions))
 message("Manifest: ", manifest_path)
@@ -1248,44 +1335,44 @@ message(
 
 #-------------------------------------------------------------------------------
 
-summary(density_manifest$aggregated_target_modis_sif)
-
-noise_df <- tibble(
-  n = 1:20,
-  noise_remaining = 1 / sqrt(n),
-  noise_reduction = 1 - noise_remaining
-) %>%
-  pivot_longer(
-    cols = c(noise_remaining, noise_reduction),
-    names_to = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(
-    metric = recode(
-      metric,
-      noise_remaining = "Noise remaining: 1/sqrt(n)",
-      noise_reduction = "Noise reduction: 1 - 1/sqrt(n)"
-    )
-  )
-
-ggplot(noise_df, aes(x = n, y = value, color = metric)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 1.8) +
-  scale_x_continuous(breaks = 1:20) +
-  scale_y_continuous(
-    labels = scales::label_percent(),
-    limits = c(0, 1)
-  ) +
-  labs(
-    x = "Number of averaged soundings (n)",
-    y = "Percentage",
-    color = NULL
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    panel.grid.minor = element_blank()
-  )
+# summary(density_manifest$aggregated_target_modis_sif)
+# 
+# noise_df <- tibble(
+#   n = 1:20,
+#   noise_remaining = 1 / sqrt(n),
+#   noise_reduction = 1 - noise_remaining
+# ) %>%
+#   pivot_longer(
+#     cols = c(noise_remaining, noise_reduction),
+#     names_to = "metric",
+#     values_to = "value"
+#   ) %>%
+#   mutate(
+#     metric = recode(
+#       metric,
+#       noise_remaining = "Noise remaining: 1/sqrt(n)",
+#       noise_reduction = "Noise reduction: 1 - 1/sqrt(n)"
+#     )
+#   )
+# 
+# ggplot(noise_df, aes(x = n, y = value, color = metric)) +
+#   geom_line(linewidth = 1) +
+#   geom_point(size = 1.8) +
+#   scale_x_continuous(breaks = 1:20) +
+#   scale_y_continuous(
+#     labels = scales::label_percent(),
+#     limits = c(0, 1)
+#   ) +
+#   labs(
+#     x = "Number of averaged soundings (n)",
+#     y = "Percentage",
+#     color = NULL
+#   ) +
+#   theme_minimal() +
+#   theme(
+#     legend.position = "bottom",
+#     panel.grid.minor = element_blank()
+#   )
 
 
 
