@@ -20,10 +20,10 @@ sf::sf_use_s2(FALSE)
 
 input_csv <- paste0(
   "data/main_sif_data/",
-  "redtiles_sif_BKR_landcover.csv"
+  "yellowtiles_sif_BKR_landcover_33.csv"
 )
 mgrs_geometry_path <- "data/mgrs_de.rds"
-output_dir <- "data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_redtiles"
+output_dir <- "data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_yellowtiles_33"
 
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -173,6 +173,13 @@ build_tile_table <- function(mgrs_path, requested_tiles) {
   analysis_crs <- st_crs(tile_crs_values[[1]])
   if (is.na(analysis_crs)) {
     stop("Could not interpret the assigned tiles' crs_utm value.")
+  }
+  if (isTRUE(st_is_longlat(analysis_crs)) ||
+      !identical(analysis_crs$units_gdal, "metre")) {
+    stop(
+      "The assigned tiles' CRS must be a projected CRS measured in metres; ",
+      "found: ", tile_crs_values[[1]]
+    )
   }
 
   tile_boundaries <- mgrs_selected %>%
@@ -663,6 +670,11 @@ tile_result <- build_tile_table(
 tile_info <- tile_result$table
 tile_boundaries <- tile_result$boundaries
 analysis_crs <- tile_result$crs
+
+message(
+  "Using assigned-tile projected CRS for 4 km windows: ",
+  analysis_crs$input
+)
 
 write_csv(
   tile_info,

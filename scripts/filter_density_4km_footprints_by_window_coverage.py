@@ -5,7 +5,7 @@ It reads only the density-cluster manifest and footprint-assignment CSV files;
 no Sentinel-2 or other predictor rasters are opened.
 
 For every assigned OCO-2 footprint, the script reconstructs its polygon from
-the four corner coordinates, projects it to EPSG:32632, and rasterizes it on
+the four corner coordinates, projects it to EPSG:32633, and rasterizes it on
 the same 200 x 200, 20 m grid used by the 4 km CNN chips. Footprints with less
 than 60% of their area represented inside the assigned window are removed.
 Windows are retained when at least four passing footprints remain.
@@ -35,11 +35,11 @@ from shapely.ops import transform
 
 INPUT_DIR = Path(
     "data/density_aggregation/"
-    "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles"
+    "sentinel2_spatial_aggregation_density_4000m_landcover_yellowtiles_33"
 )
 OUTPUT_DIR = Path(
     "data/density_aggregation/"
-    "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles_mask60_min4"
+    "sentinel2_spatial_aggregation_density_4000m_landcover_yellowtiles_33_mask60_min4"
 )
 
 INPUT_MANIFEST_PATH = (
@@ -73,7 +73,7 @@ MASK_OVERSAMPLE = 4
 MIN_MASK_INSIDE_FRACTION = 0.60
 MIN_RETAINED_FOOTPRINTS = 4
 
-WINDOW_CRS = "EPSG:32632"
+WINDOW_CRS = "EPSG:32633"
 WGS84_CRS = "EPSG:4326"
 PROGRESS_EVERY_WINDOWS = 250
 
