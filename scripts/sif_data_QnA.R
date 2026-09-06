@@ -2313,7 +2313,7 @@ htmlwidgets::saveWidget(sif_target_dates_leaflet, "sif_target_dates_leaflet.html
 
 #-------------------------------------------------------------------------------
 
-r <- rast('data/sentinel2_l2a/s2_density_4000m_T32UPU_20240722_m1_s00481_db002_w001_lc20_target_20240722_pm8d_nearest_clear.tif')
+r <- rast('data/sentinel2_l2a/s2_density_4000m_T32ULA_20190222_m1_s00001_db004_w001_lc10_target_20190222_pm8d_nearest_clear.tif')
 
 set.seed(123)
 
@@ -2335,8 +2335,8 @@ df <- read_csv('data/sentinel2_l2a/sentinel2_l2a_download_manifest.csv')
 
 summary(df$valid_fraction_before_fill)
 
-nrow(df[df$valid_fraction_before_fill < 0.90,])
-
+df <- df[df$valid_fraction_before_fill >= 0.95,]
+length(unique(df$mgrs_tile))
 
 #-------------------------------------------------------------------------------
 
@@ -2420,7 +2420,7 @@ write_csv(sif_df, 'data/main_sif_data/yellowtiles_sif_BKR_landcover.csv')
 
 manifest_path <- paste0(
   "data/density_aggregation/",
-  "sentinel2_spatial_aggregation_density_4000m_landcover_redtiles_mask60_min4/",
+  "sentinel2_spatial_aggregation_density_4000m_landcover_yellowtiles_33_mask60_min4/",
   "density_cluster_4000m_aggregate_manifest.csv"
 )
 
@@ -2433,7 +2433,7 @@ unique_dates <- readr::read_csv(
   dplyr::distinct() %>%
   dplyr::arrange(Delta_Date)
 
-readr::write_csv(unique_dates, 'data/redtile_sifdates.csv')
+readr::write_csv(unique_dates, 'data/yellowtile_33_sifdates.csv')
 
 #-------------------------------------------------------------------------------
 
