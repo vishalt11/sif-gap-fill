@@ -43,7 +43,7 @@ AGGREGATION_DIR = (
     / "data"
     / "density_aggregation"
     / "sentinel2_spatial_aggregation_density_4000m_landcover_combined_"
-    "mask60_min4_s2valid95"
+    "mask60_min4_s2valid95_par_available"
 )
 MANIFEST_PATH = AGGREGATION_DIR / "density_cluster_4000m_aggregate_manifest.csv"
 ASSIGNMENTS_PATH = AGGREGATION_DIR / "density_cluster_4000m_sif_assignments.csv"
