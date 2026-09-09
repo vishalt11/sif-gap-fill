@@ -2457,6 +2457,11 @@ summary(df$original_aggregated_target_modis_sif)
 #-------------------------------------------------------------------------------
 
 
-r <-  rast('data/sentinel2_fapar_snap_one_window_test/s2_density_4000m_T32UPV_20190206_m0_s00346_db001_w001_lc10/acquisitions/20190213T101711_S2A_39090306/fapar_raw_20m.tif')
+r <- rast("data/sentinel2_fapar_snap_one_window_test/s2_density_4000m_T33UUV_20190212_m1_s00001_db001_w001_lc60/fapar_nearest_clear_20m.tif")
 
-plot(r)
+cols <- colorRampPalette(RColorBrewer::brewer.pal(9, "YlGn"))(256)
+
+plot(r,
+     col = cols,
+     range = c(0, 1),
+     plg = list(title = "FAPAR", at = seq(0, 1, 0.2)))
