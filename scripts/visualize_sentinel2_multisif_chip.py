@@ -11,7 +11,7 @@ import numpy as np
 # Config
 
 DATA_DIR = Path(
-    "data/cnn_sentinel2_chips/multisif_6km_20m_indices_fapar_active_crop"
+    "data/cnn_sentinel2_chips/spatial_aggregate_density_4km_20m_s2valid95\\"
 )
 
 # Leave as None to use the first chips_*.npz shard in DATA_DIR.
@@ -39,6 +39,7 @@ FRACTION_CHANNELS = {
     "other_crop_fraction",
     "active_crop_fraction",
     "non_crop_fraction",
+    "nirvp"
 }
 
 SPECTRAL_INDEX_STYLES = {
@@ -47,7 +48,7 @@ SPECTRAL_INDEX_STYLES = {
     "evi": ("plasma", -1.0, 1.0),
     "ndre": ("PuOr", -1.0, 1.0),
 }
-MONTH_CHANNELS = {"month_sin", "month_cos"}
+MONTH_CHANNELS = {"doy_sin", "doy_cos"}
 
 
 def choose_shard() -> Path:

@@ -2446,3 +2446,17 @@ write_csv(sif_df_32, 'data/main_sif_data/yellowtiles_sif_BKR_landcover_32.csv')
 sif_df_33 <- sif_df %>% filter(mgrs_tile %in% c("T33UUV", "T33UVT", "T33UVS"))
 
 write_csv(sif_df_33, 'data/main_sif_data/yellowtiles_sif_BKR_landcover_33.csv')
+
+
+#-------------------------------------------------------------------------------
+
+df <- read_csv('data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_combined_mask60_min4_s2valid95_par_available/density_cluster_4000m_aggregate_manifest.csv')
+
+summary(df$original_aggregated_target_modis_sif)
+
+#-------------------------------------------------------------------------------
+
+
+r <-  rast('data/sentinel2_fapar_snap_one_window_test/s2_density_4000m_T32UPV_20190206_m0_s00346_db001_w001_lc10/acquisitions/20190213T101711_S2A_39090306/fapar_raw_20m.tif')
+
+plot(r)

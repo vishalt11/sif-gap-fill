@@ -4,13 +4,15 @@ The input tables are the consolidated density-window manifest and footprint
 assignments retained after the Sentinel-2 valid-fraction filter. Each output
 sample contains:
 
-  X:                    [19, 200, 200] predictor channels, stored as float16
+  X:                    [20, 200, 200] predictor channels, stored as float16
   aggregate_weight_map: [200, 200] equal-footprint weights, stored as float16
   y_aggregate:          mean target_modis_sif across assigned footprints
 
 The downloaded Sentinel-2 L2A GeoTIFF already represents the exact 4 km
 window at 20 m resolution. Its six named reflectance bands are used to derive
-five spectral indices. The four Sentinel quality bands are deliberately not
+five spectral indices. NIRvP is the pixelwise product of NIRv and daily PAR.
+Seasonal channels encode the SIF observation's day of year using a 365- or
+366-day annual cycle. The four Sentinel quality bands are deliberately not
 included in X or copied into the model metadata.
 
 No train/validation/test split is made here. Predictor normalization and all
@@ -93,9 +95,25 @@ N_WORKERS = 4
 # Prevent shards from different runs being mixed in one output directory.
 FAIL_IF_OUTPUT_EXISTS = True
 
-CHANNEL_NAMES = predictors.CHANNEL_NAMES
-if len(CHANNEL_NAMES) != 19:
-    raise RuntimeError(f"Expected 19 predictor channels, found {len(CHANNEL_NAMES)}")
+# Define this dataset's channels independently of the shared month-based reader.
+CHANNEL_NAMES = [
+    "ndmi",
+    "ndvi",
+    "evi",
+    "nirv",
+    "ndre",
+    "fapar",
+    "par",
+    "apar",
+    "nirvp",
+    *predictors.CROP_GROUPS.keys(),
+    "active_crop_fraction",
+    "non_crop_fraction",
+    "doy_sin",
+    "doy_cos",
+]
+if len(CHANNEL_NAMES) != 20:
+    raise RuntimeError(f"Expected 20 predictor channels, found {len(CHANNEL_NAMES)}")
 
 # Reuse the established FAPAR, PAR, crop and footprint-mask routines at the
 # dimensions of the new density-window dataset.
@@ -600,6 +618,10 @@ def build_predictor_chip(
         dst_crs,
     )
     apar = fapar * par
+    # Compute the interaction in physical units before float16 storage or
+    # training-time normalization. Missing values propagate from either input.
+    nirv = spectral_indices[CHANNEL_NAMES.index("nirv")]
+    nirvp = nirv * par
     crop_channels = predictors.crop_fraction_chips(
         year,
         month,
@@ -608,15 +630,19 @@ def build_predictor_chip(
         dst_crs,
     )
 
-    month_angle = 2.0 * np.pi * month / 12.0
+    # January 1 has phase zero; use the actual year length for leap years.
+    sif_date = pd.Timestamp(manifest_row["Delta_Date"])
+    days_in_year = 366 if sif_date.is_leap_year else 365
+    doy_angle = 2.0 * np.pi * (sif_date.dayofyear - 1) / days_in_year
     channels = [
         *spectral_indices,
         fapar,
         par,
         apar,
+        nirvp,
         *crop_channels,
-        predictors.constant_channel(np.sin(month_angle)),
-        predictors.constant_channel(np.cos(month_angle)),
+        predictors.constant_channel(np.sin(doy_angle)),
+        predictors.constant_channel(np.cos(doy_angle)),
     ]
     if len(channels) != len(CHANNEL_NAMES):
         raise RuntimeError(
@@ -995,6 +1021,13 @@ def prepare_chips() -> None:
         "sentinel_quality_bands_included": False,
         "sentinel_reflectance_units": "unitless BOA reflectance",
         "channels": CHANNEL_NAMES,
+        "nirvp_formula": "nirv * par, computed before normalization",
+        "seasonal_encoding": {
+            "source": "SIF Delta_Date",
+            "channels": ["doy_sin", "doy_cos"],
+            "angle_formula": "2 * pi * (day_of_year - 1) / days_in_year",
+            "days_in_year": "366 in leap years, otherwise 365",
+        },
         "target": AGGREGATE_TARGET_COLUMN,
         "assignment_target": TARGET_COLUMN,
         "target_range_filter": "none; retain the complete accepted SIF range",
