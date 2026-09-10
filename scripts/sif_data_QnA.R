@@ -2450,14 +2450,8 @@ write_csv(sif_df_33, 'data/main_sif_data/yellowtiles_sif_BKR_landcover_33.csv')
 
 #-------------------------------------------------------------------------------
 
-df <- read_csv('data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_combined_mask60_min4_s2valid95_par_available/density_cluster_4000m_aggregate_manifest.csv')
 
-summary(df$original_aggregated_target_modis_sif)
-
-#-------------------------------------------------------------------------------
-
-
-r <- rast("data/sentinel2_fapar_snap_one_window_test/s2_density_4000m_T33UUV_20190212_m1_s00001_db001_w001_lc60/fapar_nearest_clear_20m.tif")
+r <- rast("data/sentinel2_fapar_snap_one_window_test/s2_density_4000m_T32UMD_20190725_m1_s00111_db002_w004_lc20/acquisitions/20190727T104625_S2B_28562660/fapar_raw_20m.tif")
 
 cols <- colorRampPalette(RColorBrewer::brewer.pal(9, "YlGn"))(256)
 
@@ -2465,3 +2459,36 @@ plot(r,
      col = cols,
      range = c(0, 1),
      plg = list(title = "FAPAR", at = seq(0, 1, 0.2)))
+
+#-------------------------------------------------------------------------------
+
+df <- read_csv('data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_combined_mask60_min4_s2valid95_par_available/density_cluster_4000m_aggregate_manifest.csv')
+
+colnames(df)
+summary(df$aggregated_target_modis_sif)
+table(df$mgrs_tile_t)
+
+set.seed(42)
+
+df_sampled <- df %>%
+  group_by(mgrs_tile_t) %>%
+  slice_sample(prop = 0.6) %>%
+  ungroup()
+
+summary(df_sampled$aggregated_target_modis_sif)
+
+df1 <- read_csv('data/density_aggregation/sentinel2_spatial_aggregation_density_4000m_landcover_combined_mask60_min4_s2valid95_par_available/density_cluster_4000m_sif_assignments.csv')
+
+df1_sampled <- df1 %>%
+  semi_join(df_sampled %>% select(aggregation_id), by = "aggregation_id")
+
+
+write_csv(df_sampled, 'data/density_aggregation/sen2_spataggr_fapar/density_cluster_4000m_aggregate_manifest.csv')
+write_csv(df1_sampled, 'data/density_aggregation/sen2_spataggr_fapar/density_cluster_4000m_sif_assignments.csv')
+
+#-------------------------------------------------------------------------------
+
+r <- rast('data/sentinel2_fapar_composite_inputs/s2_density_4000m_T32ULA_20190222_m1_s00001_db002_w001_lc10_snap_inputs.tif')
+plot(r)
+
+

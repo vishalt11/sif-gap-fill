@@ -284,20 +284,21 @@ def band(data, name):
     return data[ALL_BANDS.index(name)]
 
 
-def numeric_validity(data):
-    inputs = np.stack([band(data, name) for name in SNAP_INPUTS.values()])
-    valid = (band(data, "dataMask") == 1) & np.all(
+def numeric_validity(data, input_bands=ALL_BANDS):
+    get_band = lambda name: data[input_bands.index(name)]
+    inputs = np.stack([get_band(name) for name in SNAP_INPUTS.values()])
+    valid = (get_band("dataMask") == 1) & np.all(
         np.isfinite(inputs) & (inputs != NODATA), axis=0
     )
     for name in ("sunZenithAngles", "viewZenithMean"):
-        valid &= (band(data, name) >= 0) & (band(data, name) < 90)
+        valid &= (get_band(name) >= 0) & (get_band(name) < 90)
     for name in ("sunAzimuthAngles", "viewAzimuthMean"):
-        valid &= (band(data, name) >= 0) & (band(data, name) <= 360)
+        valid &= (get_band(name) >= 0) & (get_band(name) <= 360)
     return valid
 
 
-def run_snap(gpt, directory, data, bounds, crs, sensor):
-    valid = numeric_validity(data)
+def run_snap(gpt, directory, data, bounds, crs, sensor, input_bands=ALL_BANDS):
+    valid = numeric_validity(data, input_bands)
     height, width = valid.shape
     # ENVI's explicit band names avoid GeoTIFF-reader-dependent band_1 names.
     envi = directory / "snap_input.img"
@@ -309,7 +310,8 @@ def run_snap(gpt, directory, data, bounds, crs, sensor):
         for index, (snap_name, api_name) in enumerate(SNAP_INPUTS.items(), 1):
             # Finite placeholders prevent NaNs entering SNAP's domain lookup.
             # These pixels are excluded from every usable output afterwards.
-            dst.write(np.where(valid, band(data, api_name), 0).astype("float32"), index)
+            values = data[input_bands.index(api_name)]
+            dst.write(np.where(valid, values, 0).astype("float32"), index)
             dst.set_band_description(index, snap_name)
     header = envi.with_suffix(".hdr")
     if not header.is_file():
