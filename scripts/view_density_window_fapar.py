@@ -12,7 +12,7 @@ from rasterio.warp import transform_geom
 from shapely.geometry import box, mapping
 
 ROOT = Path(__file__).resolve().parent
-WINDOW_ID = "s2_density_4000m_T32ULA_20220629_m1_s00036_db001_w006_lc10"
+WINDOW_ID = "s2_density_4000m_T32UPU_20190725_m1_s00441_db002_w016_lc60"
 manifest = ROOT / "data/density_aggregation" / (
     "sentinel2_spatial_aggregation_density_4000m_landcover_combined_"
     "mask60_min4_s2valid95_par_available/density_cluster_4000m_aggregate_manifest.csv"

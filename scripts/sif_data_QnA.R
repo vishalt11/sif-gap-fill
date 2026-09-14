@@ -2488,8 +2488,8 @@ write_csv(df1_sampled, 'data/density_aggregation/sen2_spataggr_fapar/density_clu
 
 #-------------------------------------------------------------------------------
 
-r <- rast('data/sentinel2_fapar_composite_snap/s2_density_4000m_T32ULA_20220629_m1_s00036_db001_w006_lc10_fapar.tif')
-plot(r)
+r <- rast('data/sentinel2_fapar_composite_snap/s2_density_4000m_T32UPU_20190725_m1_s00441_db002_w016_lc60_fapar.tif')
+#plot(r)
 cols <- colorRampPalette(RColorBrewer::brewer.pal(9, "YlGn"))(256)
 
 plot(r,
