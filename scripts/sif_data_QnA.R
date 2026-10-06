@@ -2496,3 +2496,7 @@ plot(r,
      col = cols,
      range = c(0, 1),
      plg = list(title = "FAPAR", at = seq(0, 1, 0.2)))
+
+r1 <- rast('data/sentinel2_fapar_composite_snap/s2_density_4000m_T32UPU_20190725_m1_s00441_db002_w016_lc60_snap_flag.tif')
+
+plot(r1)

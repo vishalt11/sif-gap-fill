@@ -1,0 +1,5 @@
+# Exclude notebooks, HTML and CSS from GitHub language statistics.
+*.ipynb -linguist-detectable
+*.html -linguist-detectable
+*.htm -linguist-detectable
+*.css -linguist-detectable

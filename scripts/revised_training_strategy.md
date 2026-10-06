@@ -57,3 +57,36 @@ These are the improvements I would prioritize:
    Also examine errors against the original valid fraction and Sentinel source-day offsets. These diagnostics exist upstream but were omitted from your model-ready metadata, so they would need to be joined back in. They can show whether remaining errors relate to temporal mismatch or filled pixels.
 
 **My proposed first version would use the existing U-Net, revised splitting, joint augmentation, stronger normalization estimates and expanded diagnostics.** After that baseline, I would test finer seasonal encoding, NIRvP and the map regularization separately. That gives you a clear way to identify which changes actually help, without adding meteorological datasets.
+
+
+---------------------------------------------------------------------------------------------------------------------
+
+
+The new dataset is compatible, but the notebook needs a few configuration changes. The model, loss, normalization and diagnostics can stay as they are.
+Update these settings:
+Setting  New value
+CHIP_DIR Actual Kaggle directory containing the NPZ files and metadata
+EXPECTED_SAMPLE_COUNT   8347, assuming all windows were prepared
+RUN_NAME A new name, such as density_4km_snap_fapar_v1
+
+
+If you leave CHIP_DIR = None, change DATASET_DIRECTORY_NAME to spatial_aggregate_density_4km_20m_snap_fapar for automatic discovery.
+The new dataset retains the same 20 channels, channel order, targets and weight maps. Filled SNAP FAPAR replaces GLASS FAPAR, and APAR uses the new values.
+Make sure your Kaggle upload also includes chip_metadata.csv, footprint_metadata.csv and dataset_config.json alongside the NPZ files.
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+
+
+They differ in which data they measure, their units, and their formula.
+   Training aggregate loss Validation RMSE
+Data  Training windows  Held-out validation windows
+Scale Standardized SIF  Original SIF units
+Formula  Smooth L1: quadratic for small errors, linear for large errors Square root of mean squared error; more sensitive to large errors
+Purpose  Updates model weights   Selects the best checkpoint and controls early stopping
+
+
+Both compare the weighted-average predicted SIF for a window against its observed aggregate target.
+So train=0.15159 and val_RMSE=0.07306 cannot be compared numerically—the smaller number does not mean validation performs better.
+The similarity penalty measures something different: consistency between neighbouring pixel predictions. It is not included in validation RMSE.
